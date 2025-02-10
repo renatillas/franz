@@ -15,10 +15,14 @@ pub fn happy_path_test() {
 
   //  let assert Ok(Nil) = create_topic([#("127.0.0.1", 9092)], topic, 1, 1)
 
-  franz.start_topic_subscriber(connection, topic, [0], fn(_, _, pid) {
-    franz.ack(pid)
-  })
-  |> should.be_ok()
-
-  franz.produce_sync_offset(connection, topic, 0, <<"key">>, <<"value">>)
+  let pid =
+    franz.start_topic_subscriber(
+      connection,
+      topic,
+      franz.All,
+      [],
+      [#(0, 0)],
+      fn(_, message, _) { franz.ack_return(Nil) },
+      Nil,
+    )
 }
