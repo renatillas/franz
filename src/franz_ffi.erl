@@ -1,8 +1,8 @@
 -module(franz_ffi).
 
--export([fetch/4, produce_cb/6, stop_client/1, produce/5, produce_sync/5,
-         start_client/2, produce_sync_offset/5, create_topic/4, start_topic_subscriber/7,
-         ack_return/1, start_consumer/3]).
+-export([fetch/4, produce_cb/6, stop_client/1, produce/5, produce_sync/5, start_client/2,
+         produce_sync_offset/5, create_topic/4, start_topic_subscriber/8, ack_return/1,
+         commit_return/1, start_consumer/3, start_group_subscriber/8]).
 
 -record(franz_client, {name}).
 
@@ -81,6 +81,7 @@ start_topic_subscriber(Client,
                        Partitions,
                        ConsumerConfig,
                        CommitedOffsets,
+                       MessageType,
                        CbFun,
                        CbInit) ->
   P = case Partitions of
@@ -94,12 +95,15 @@ start_topic_subscriber(Client,
                                    P,
                                    ConsumerConfig,
                                    CommitedOffsets,
-                                   message,
+                                   MessageType,
                                    CbFun,
                                    CbInit).
 
 ack_return(Any) ->
   {ok, ack, Any}.
+
+commit_return(Any) ->
+  {ok, commit, Any}.
 
 start_consumer(Client, Topic, ConsumerConfig) ->
   nil_result(brod:start_consumer(Client#franz_client.name,
@@ -109,7 +113,7 @@ start_consumer(Client, Topic, ConsumerConfig) ->
 consumer_config(Options) ->
   lists:map(fun(Option) ->
                case Option of
-                 {begin_offset, message_timestamp, Int} -> {begin_offset, Int};
+                 {begin_offset, {message_timestamp, Int}} -> {begin_offset, Int};
                  Rest -> Rest
                end
             end,
@@ -143,3 +147,25 @@ consumer_partition(Partition) ->
     {partitioner, {partition_fun, F}} ->
       F
   end.
+
+-record(cbm_init_data, {cb_fun :: brod_topic_subscriber:cb_fun(), cb_data :: term()}).
+
+start_group_subscriber(Client,
+                       GroupId,
+                       Topics,
+                       ConsumerConfig,
+                       GroupConfig,
+                       MessageType,
+                       CbFun,
+                       CbInitialState) ->
+  InitData = #cbm_init_data{cb_fun = CbFun, cb_data = CbInitialState},
+  Args =
+    #{client => Client#franz_client.name,
+      group_id => GroupId,
+      topics => Topics,
+      cb_module => franz_group_subscriber_cb_fun,
+      init_data => InitData,
+      message_type => MessageType,
+      consumer_config => consumer_config(ConsumerConfig),
+      group_config => GroupConfig},
+  brod_group_subscriber_v2:start_link(Args).

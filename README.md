@@ -3,22 +3,12 @@
 [![Package Version](https://img.shields.io/hexpm/v/franz)](https://hex.pm/packages/franz)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/franz/)
 
-```sh
-gleam add franz@1
-```
-```gleam
-import franz
+`franz` is a Gleam library for interacting with Kafka. It provides functionalities to produce and consume messages, handle topics, and manage configurations.
 
-pub fn main() {
-  // TODO: An example of the project in use
-}
-```
+## Installation
 
-Further documentation can be found at <https://hexdocs.pm/franz>.
-
-## Development
+Add `franz` to your Gleam project:
 
 ```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+gleam add franz
 ```
