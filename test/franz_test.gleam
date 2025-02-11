@@ -40,7 +40,7 @@ pub fn happy_path_test() {
       connection,
       "group",
       [topic],
-      group_subscriber.Message,
+      message_type.Message,
       fn(message, counter) {
         io.debug(message)
         io.debug(counter)

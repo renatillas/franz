@@ -1,3 +1,4 @@
+import franz/producer_config
 import gleam/erlang/process.{type Pid}
 
 pub type FranzError {
@@ -50,27 +51,8 @@ pub type ClientConfig {
   ReconnectCoolDownSeconds(Int)
   AllowTopicAutoCreation(Bool)
   AutoStartProducers(Bool)
-  DefaultProducerConfig(List(ProducerConfig))
+  DefaultProducerConfig(List(producer_config.ProducerConfig))
   UnknownTopicCacheTtl(Int)
-}
-
-pub type ProducerConfig {
-  RequiredAcks(Int)
-  AckTimeout(Int)
-  PartitionBufferLimit(Int)
-  PartitionOnwireLimit(Int)
-  MaxBatchSize(Int)
-  MaxRetries(Int)
-  RetryBackoffMs(Int)
-  Compression(Compression)
-  MaxLingerMs(Int)
-  MaxLingerCount(Int)
-}
-
-pub type Compression {
-  NoCompression
-  Gzip
-  Snappy
 }
 
 pub opaque type ClientBuilder {

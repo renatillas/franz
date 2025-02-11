@@ -1,4 +1,5 @@
 import franz
+import franz/producer_config
 
 pub type ProducerPartition {
   Partition(Int)
@@ -15,7 +16,7 @@ pub opaque type ProducerBuilder {
   ProducerBuilder(
     client: franz.FranzClient,
     topic: String,
-    configs: List(franz.ProducerConfig),
+    configs: List(producer_config.ProducerConfig),
   )
 }
 
@@ -69,7 +70,7 @@ pub fn produce_cb(
 fn start_producer(
   client: franz.FranzClient,
   topic: String,
-  consumer_config: List(franz.ProducerConfig),
+  consumer_config: List(producer_config.ProducerConfig),
 ) -> Result(Nil, franz.FranzError)
 
 pub fn new(client: franz.FranzClient, topic: String) -> ProducerBuilder {
@@ -78,7 +79,7 @@ pub fn new(client: franz.FranzClient, topic: String) -> ProducerBuilder {
 
 pub fn with_config(
   builder: ProducerBuilder,
-  config: franz.ProducerConfig,
+  config: producer_config.ProducerConfig,
 ) -> ProducerBuilder {
   ProducerBuilder(builder.client, builder.topic, [config, ..builder.configs])
 }

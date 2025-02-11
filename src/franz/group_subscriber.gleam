@@ -1,12 +1,8 @@
 import franz
 import franz/consumer_config
 import franz/group_config
+import franz/message_type
 import gleam/erlang/process.{type Pid}
-
-pub type MessageType {
-  Message
-  MessageSet
-}
 
 pub type CallbackReturn
 
@@ -15,7 +11,7 @@ pub type GroupBuilder(callback_init_state) {
     client: franz.FranzClient,
     group_id: String,
     topics: List(String),
-    message_type: MessageType,
+    message_type: message_type.MessageType,
     callback: fn(franz.KafkaMessage, callback_init_state) -> CallbackReturn,
     init_callback_state: callback_init_state,
     group_config: List(group_config.GroupConfig),
@@ -36,7 +32,7 @@ fn start_group_subscriber(
   topics: List(String),
   consumer_config: List(consumer_config.ConsumerConfig),
   group_config: List(group_config.GroupConfig),
-  message_type: MessageType,
+  message_type: message_type.MessageType,
   callback: fn(franz.KafkaMessage, cb_init_state) -> CallbackReturn,
   init_callback_state: cb_init_state,
 ) -> Result(Pid, franz.FranzError)
@@ -45,7 +41,7 @@ pub fn new(
   client: franz.FranzClient,
   group_id: String,
   topics: List(String),
-  message_type: MessageType,
+  message_type: message_type.MessageType,
   callback: fn(franz.KafkaMessage, callback_init_state) -> CallbackReturn,
   init_callback_state: callback_init_state,
 ) -> GroupBuilder(callback_init_state) {
