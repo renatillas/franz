@@ -1,8 +1,8 @@
 import franz
-import gleam/erlang/process
+import franz/consumers
+import franz/producers
 import gleam/io
 import gleeunit
-import gleeunit/should
 
 pub fn main() {
   gleeunit.main()
@@ -10,41 +10,37 @@ pub fn main() {
 
 // gleeunit test functions end in `_test`
 pub fn happy_path_test() {
-  let topic = "new-topic"
-  let connection =
-    franz.start_client([#("localhost", 9092)], [franz.AutoStartProducers(True)])
-    |> should.be_ok()
+  let topic = "gleamy_topic"
+  let endpoint = #("localhost", 9092)
+  let assert Ok(connection) =
+    franz.start_client([endpoint], [franz.AutoStartProducers(True)])
 
-  //  let assert Ok(Nil) = create_topic([#("127.0.0.1", 9092)], topic, 1, 1)
+  let assert Ok(Nil) = franz.create_topic([endpoint], topic, 1, 1)
 
-  franz.start_topic_subscriber(
-    connection,
-    topic,
-    franz.All,
-    [franz.BeginOffset(franz.MessageTimestamp(1))],
-    [#(0, 0)],
-    franz.MessageSet,
-    fn(_, message, _) {
-      io.debug(message)
-      franz.ack_return(Nil)
-    },
-    Nil,
-  )
-  process.sleep(1000)
+  let assert Ok(Nil) =
+    producers.produce_sync(
+      connection,
+      topic,
+      producers.Partitioner(producers.Random),
+      <<"gracias">>,
+      producers.Value(<<"bitte">>, [#("meta", "data")]),
+    )
 
-  franz.start_group_subscriber(
-    connection,
-    "group",
-    [topic],
-    [franz.BeginOffset(franz.MessageTimestamp(1))],
-    [franz.OffsetCommitIntervalSeconds(5)],
-    franz.Message,
-    fn(message, _) {
-      io.debug(message)
-      franz.ack_return(Nil)
-    },
-    Nil,
-  )
-  |> io.debug
+  let counter = 0
+  let assert Ok(pid) =
+    consumers.start_group_subscriber(
+      connection,
+      "group",
+      [topic],
+      [consumers.BeginOffset(consumers.Earliest)],
+      [consumers.OffsetCommitIntervalSeconds(5)],
+      consumers.Message,
+      fn(message, counter) {
+        io.debug(message)
+        io.debug(counter)
+        consumers.commit_return(counter + 1)
+      },
+      counter,
+    )
   process.sleep(1000)
 }
