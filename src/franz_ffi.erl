@@ -90,11 +90,16 @@ start_topic_subscriber(Client,
         {list, PartitionList} ->
           PartitionList
       end,
+  C = list:map(fun(CommittedOffset) ->
+                  case CommittedOffset of
+                    {commited_offset, Partition, Offset} -> {Partition, Offset}
+                  end
+               end, CommitedOffsets),
   brod_topic_subscriber:start_link(Client#franz_client.name,
                                    Topic,
                                    P,
                                    ConsumerConfig,
-                                   CommitedOffsets,
+                                   C,
                                    MessageType,
                                    CbFun,
                                    CbInit).
