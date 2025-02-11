@@ -38,12 +38,14 @@ pub type ConsumerConfig {
 }
 
 pub type OffsetTime {
-  Earliest
+  /// Default value
   Latest
+  Earliest
   MessageTimestamp(Int)
 }
 
 pub type OffsetResetPolicy {
+  /// Default value
   ResetBySubscriber
   ResetToEarliest
   ResetToLatest
