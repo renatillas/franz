@@ -1,8 +1,8 @@
 -module(franz_ffi).
 
--export([fetch/4, produce_cb/6, stop_client/1, produce/5, produce_sync/5, start_client/2,
-         produce_sync_offset/5, create_topic/4, start_topic_subscriber/8, ack/1, commit/1,
-         start_group_subscriber/8, start_producer/3]).
+-export([stop_group_subscriber/1, fetch/4, produce_cb/6, stop_client/1, produce/5,
+         produce_sync/5, start_client/2, produce_sync_offset/5, create_topic/4,
+         start_topic_subscriber/8, ack/1, commit/1, start_group_subscriber/8, start_producer/3]).
 
 -record(franz_client, {name}).
 
@@ -143,7 +143,7 @@ consumer_partition(Partition) ->
       F
   end.
 
--record(cbm_init_data, {cb_fun :: brod_topic_subscriber:cb_fun(), cb_data :: term()}).
+-record(cbm_init_data, {cb_fun :: term(), cb_data :: term()}).
 
 start_group_subscriber(Client,
                        GroupId,
@@ -167,3 +167,9 @@ start_group_subscriber(Client,
 
 start_producer(Client, Topic, ProducerConfig) ->
   brod:start_producer(Client#franz_client.name, Topic, ProducerConfig).
+
+stop_group_subscriber(Pid) ->
+  case brod_group_subscriber_v2:stop(Pid) of
+    ok ->
+      {ok, nil}
+  end.

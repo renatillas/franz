@@ -19,6 +19,7 @@ pub opaque type Builder(callback_init_state) {
 
 pub type Ack
 
+/// Acknowledge the processing of the message.
 @external(erlang, "franz_ffi", "ack")
 pub fn ack(cb_state: cb_state) -> Ack
 
@@ -34,6 +35,7 @@ fn start_topic_subscriber(
   init_callback_state: cb_state,
 ) -> Result(Pid, franz.FranzError)
 
+/// Create a new topic subscriber builder.
 pub fn new(
   client: franz.FranzClient,
   topic: String,
@@ -54,6 +56,7 @@ pub fn new(
   )
 }
 
+/// Add a consumer configuration to the topic subscriber builder.
 pub fn with_config(
   builder: Builder(callback_init_state),
   consumer_config: consumer_config.ConsumerConfig,
@@ -64,6 +67,7 @@ pub fn with_config(
   ])
 }
 
+/// Add a commited offset to the topic subscriber builder.
 pub fn with_commited_offset(
   builder: Builder(callback_init_state),
   partition: Int,
@@ -75,6 +79,7 @@ pub fn with_commited_offset(
   ])
 }
 
+/// Start a new topic subscriber.
 pub fn start(
   builder: Builder(callback_init_state),
 ) -> Result(Pid, franz.FranzError) {

@@ -6,7 +6,7 @@ import gleam/erlang/process.{type Pid}
 
 pub type CallbackReturn
 
-pub type GroupBuilder(callback_init_state) {
+pub opaque type GroupBuilder(callback_init_state) {
   GroupBuilder(
     client: franz.FranzClient,
     group_id: String,
@@ -19,9 +19,11 @@ pub type GroupBuilder(callback_init_state) {
   )
 }
 
+/// Commit the offset of the last message that was successfully processed.
 @external(erlang, "franz_ffi", "commit")
 pub fn commit(cb_state: cb_state) -> CallbackReturn
 
+/// Acknowledge the processing of the message.
 @external(erlang, "franz_ffi", "ack")
 pub fn ack(cb_state: cb_state) -> CallbackReturn
 
@@ -37,6 +39,7 @@ fn start_group_subscriber(
   init_callback_state: cb_init_state,
 ) -> Result(Pid, franz.FranzError)
 
+/// Create a new group subscriber builder.
 pub fn new(
   client: franz.FranzClient,
   group_id: String,
@@ -57,6 +60,7 @@ pub fn new(
   )
 }
 
+/// Add a group configuration to the group builder.
 pub fn with_group_config(
   group_builder: GroupBuilder(callback_init_state),
   group_config: group_config.GroupConfig,
@@ -67,6 +71,7 @@ pub fn with_group_config(
   ])
 }
 
+/// Add a consumer configuration to the group builder.
 pub fn with_consumer_config(
   group_builder: GroupBuilder(callback_init_state),
   consumer_config: consumer_config.ConsumerConfig,
@@ -77,6 +82,7 @@ pub fn with_consumer_config(
   ])
 }
 
+/// Start a new group subscriber.
 pub fn start(
   group_builder: GroupBuilder(callback_init_state),
 ) -> Result(Pid, franz.FranzError) {
@@ -91,3 +97,6 @@ pub fn start(
     group_builder.init_callback_state,
   )
 }
+
+@external(erlang, "franz_ffi", "start_group_subscriber")
+pub fn stop(pid: Pid) -> Result(Nil, franz.FranzError)
