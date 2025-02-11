@@ -11,6 +11,14 @@ pub type Partitioner {
   Hash
 }
 
+pub opaque type ProducerBuilder {
+  ProducerBuilder(
+    client: franz.FranzClient,
+    topic: String,
+    configs: List(franz.ProducerConfig),
+  )
+}
+
 pub type Value {
   Value(value: BitArray, headers: List(#(String, String)))
   ValueWithTimestamp(
@@ -56,3 +64,25 @@ pub fn produce_cb(
   value: Value,
   callback: fn(franz.Partition, franz.Offset) -> any,
 ) -> Result(Int, franz.FranzError)
+
+@external(erlang, "franz_ffi", "start_producer")
+fn start_producer(
+  client: franz.FranzClient,
+  topic: String,
+  consumer_config: List(franz.ProducerConfig),
+) -> Result(Nil, franz.FranzError)
+
+pub fn new(client: franz.FranzClient, topic: String) -> ProducerBuilder {
+  ProducerBuilder(client, topic, [])
+}
+
+pub fn with_config(
+  builder: ProducerBuilder,
+  config: franz.ProducerConfig,
+) -> ProducerBuilder {
+  ProducerBuilder(builder.client, builder.topic, [config, ..builder.configs])
+}
+
+pub fn start(builder: ProducerBuilder) -> Result(Nil, franz.FranzError) {
+  start_producer(builder.client, builder.topic, builder.configs)
+}

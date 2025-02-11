@@ -17,13 +17,15 @@ gleam add franz
 
 ```gleam
   import franz
-  import franz/consumer
   import franz/producer
+  import franz/consumer
 
   let topic = "gleamy_topic"
   let endpoint = #("localhost", 9092)
   let assert Ok(connection) =
-    franz.start_client([endpoint], [franz.AutoStartProducers(True)])
+    franz.new_client([endpoint])
+    |> franz.with_config(franz.AutoStartProducers(True))
+    |> franz.start()
 
   let assert Ok(Nil) = franz.create_topic([endpoint], topic, 1, 1)
 
@@ -46,9 +48,9 @@ gleam add franz
       [consumer.OffsetCommitIntervalSeconds(5)],
       consumer.Message,
       fn(message, counter) {
-        // io.debug(message)
-        // io.debug(counter)
-        consumer.commit_return(counter + 1)
+        io.debug(message)
+        io.debug(counter)
+        consumer.commit(counter + 1)
       },
       counter,
     )

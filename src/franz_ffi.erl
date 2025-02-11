@@ -1,8 +1,8 @@
 -module(franz_ffi).
 
 -export([fetch/4, produce_cb/6, stop_client/1, produce/5, produce_sync/5, start_client/2,
-         produce_sync_offset/5, create_topic/4, start_topic_subscriber/8, ack_return/1,
-         commit_return/1, start_consumer/3, start_group_subscriber/8]).
+         produce_sync_offset/5, create_topic/4, start_topic_subscriber/8, ack/1, commit/1,
+         start_group_subscriber/8, start_producer/3]).
 
 -record(franz_client, {name}).
 
@@ -80,7 +80,7 @@ start_topic_subscriber(Client,
                        Topic,
                        Partitions,
                        ConsumerConfig,
-                       CommitedOffsets,
+                       CommittedOffsets,
                        MessageType,
                        CbFun,
                        CbInit) ->
@@ -90,30 +90,20 @@ start_topic_subscriber(Client,
         {list, PartitionList} ->
           PartitionList
       end,
-  C = list:map(fun(CommittedOffset) ->
-                  case CommittedOffset of
-                    {commited_offset, Partition, Offset} -> {Partition, Offset}
-                  end
-               end, CommitedOffsets),
   brod_topic_subscriber:start_link(Client#franz_client.name,
                                    Topic,
                                    P,
                                    ConsumerConfig,
-                                   C,
+                                   CommittedOffsets,
                                    MessageType,
                                    CbFun,
                                    CbInit).
 
-ack_return(Any) ->
+ack(Any) ->
   {ok, ack, Any}.
 
-commit_return(Any) ->
+commit(Any) ->
   {ok, commit, Any}.
-
-start_consumer(Client, Topic, ConsumerConfig) ->
-  nil_result(brod:start_consumer(Client#franz_client.name,
-                                 Topic,
-                                 consumer_config(ConsumerConfig))).
 
 consumer_config(Options) ->
   lists:map(fun(Option) ->
@@ -174,3 +164,6 @@ start_group_subscriber(Client,
       consumer_config => consumer_config(ConsumerConfig),
       group_config => GroupConfig},
   brod_group_subscriber_v2:start_link(Args).
+
+start_producer(Client, Topic, ProducerConfig) ->
+  brod:start_producer(Client#franz_client.name, Topic, ProducerConfig).

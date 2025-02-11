@@ -73,11 +73,36 @@ pub type Compression {
   Snappy
 }
 
+pub opaque type ClientBuilder {
+  ClientBuilder(
+    bootstrap_endpoints: List(#(String, Int)),
+    config: List(ClientConfig),
+  )
+}
+
 @external(erlang, "franz_ffi", "start_client")
-pub fn start_client(
+fn start_client(
   bootstrap_endpoints: List(#(String, Int)),
   client_config: List(ClientConfig),
 ) -> Result(FranzClient, FranzError)
+
+pub fn new_client(bootstrap_endpoints: List(#(String, Int))) -> ClientBuilder {
+  ClientBuilder(bootstrap_endpoints, [])
+}
+
+pub fn with_config(
+  client_builder: ClientBuilder,
+  client_config: ClientConfig,
+) -> ClientBuilder {
+  ClientBuilder(..client_builder, config: [
+    client_config,
+    ..client_builder.config
+  ])
+}
+
+pub fn start(client_builder: ClientBuilder) -> Result(FranzClient, FranzError) {
+  start_client(client_builder.bootstrap_endpoints, client_builder.config)
+}
 
 @external(erlang, "franz_ffi", "stop_client")
 pub fn stop_client(client: FranzClient) -> Nil
