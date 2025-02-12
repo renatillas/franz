@@ -1,6 +1,6 @@
 -module(franz_ffi).
 
--export([stop_group_subscriber/1, fetch/4, produce_cb/6, stop_client/1, produce/5,
+-export([stop_group_subscriber/1, fetch/5, produce_cb/6, stop_client/1, produce/5,
          produce_sync/5, start_client/2, produce_sync_offset/5, create_topic/4,
          start_topic_subscriber/8, ack/1, commit/1, start_group_subscriber/8, start_producer/3]).
 
@@ -118,8 +118,12 @@ stop_client(Client) ->
   brod:stop_client(Client#franz_client.name),
   nil.
 
-fetch(Client, Topic, Partition, Offset) ->
-  brod:fetch(Client#franz_client.name, Topic, Partition, Offset).
+fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
+  brod:fetch(Client#franz_client.name,
+             Topic,
+             Partition,
+             Offset,
+             proplists:to_map(OffsetOptions)).
 
 value(Value) ->
   case Value of
