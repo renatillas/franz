@@ -147,12 +147,6 @@ pub fn fetch(
   options fetch_options: List(FetchOption),
 ) -> Result(#(Int, KafkaMessage), FranzError)
 
-/// List consumer groups in the given group coordinator broker.
-@external(erlang, "franz_ffi", "list_groups")
-pub fn list_consumer_groups(
-  bootstrap_endpoint: Endpoint,
-) -> Result(ConsumerGroup, FranzError)
-
 @external(erlang, "franz_ffi", "delete_topics")
 pub fn delete_topics(
   endpoints endpoints: List(Endpoint),
