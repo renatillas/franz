@@ -1,10 +1,11 @@
 -module(franz_ffi).
 
--export([stop_group_subscriber/1, fetch/5, produce_cb/6, stop_client/1, produce/5,
-         produce_sync/5, start_client/2, produce_sync_offset/5, create_topic/4,
-         start_topic_subscriber/8, ack/1, commit/1, start_group_subscriber/8, start_producer/3]).
+-export([produce_no_ack/5, delete_topics/3, list_groups/1, stop_group_subscriber/1,
+         fetch/5, produce_cb/6, stop_client/1, produce_sync/5, start_client/2,
+         produce_sync_offset/5, create_topic/6, start_topic_subscriber/8, ack/1, commit/1,
+         start_group_subscriber/8, start_producer/3]).
 
--record(franz_client, {name}).
+-record(franz_client, {name, pid}).
 
 nil_result(Result) ->
   case Result of
@@ -14,12 +15,14 @@ nil_result(Result) ->
       {error, Reason}
   end.
 
-start_client(KafkaBootstrapEndpoints, ClientConfig) ->
+start_client(Endpoints, ClientConfig) ->
   Id = integer_to_list(erlang:unique_integer([positive])),
   ClientName = list_to_atom("client" ++ Id),
-  case brod:start_client(KafkaBootstrapEndpoints, ClientName, ClientConfig) of
-    ok ->
-      {ok, #franz_client{name = ClientName}};
+  TupleEndpoints =
+    lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
+  case brod:start_link_client(TupleEndpoints, ClientName, ClientConfig) of
+    {ok, Pid} ->
+      {ok, #franz_client{name = ClientName, pid = Pid}};
     {error, Reason} ->
       {error, Reason}
   end.
@@ -38,26 +41,20 @@ produce_sync(Client, Topic, Partition, Key, Value) ->
                                Key,
                                value(Value))).
 
-produce(Client, Topic, Partition, Key, Value) ->
-  case brod:produce(Client#franz_client.name,
-                    Topic,
-                    consumer_partition(Partition),
-                    Key,
-                    value(Value))
-  of
-    {ok, _} ->
-      {ok, nil};
-    {error, Reason} ->
-      {error, Reason}
-  end.
+produce_no_ack(Client, Topic, Partition, Key, Value) ->
+  nil_result(brod:produce_no_ack(Client#franz_client.name,
+                                 Topic,
+                                 consumer_partition(Partition),
+                                 Key,
+                                 value(Value))).
 
 produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
-  case brod:produce(Client#franz_client.name,
-                    Topic,
-                    consumer_partition(Partition),
-                    Key,
-                    value(Value),
-                    AckCb)
+  case brod:produce_cb(Client#franz_client.name,
+                       Topic,
+                       consumer_partition(Partition),
+                       Key,
+                       value(Value),
+                       fun(P, O) -> AckCb({cb_partition, P}, {cb_offset, O}) end)
   of
     ok ->
       {ok, Partition};
@@ -67,14 +64,19 @@ produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
       {error, Reason}
   end.
 
-create_topic(Hosts, Name, Partitions, ReplicationFactor) ->
+create_topic(Hosts, Name, Partitions, ReplicationFactor, Configs, Timeout) ->
+  MapConfigs =
+    lists:map(fun(Config) -> case Config of {Key, Value} -> #{name => Key, value => Value} end
+              end,
+              Configs),
+  TupleHosts = lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Hosts),
   Topics =
     [#{name => Name,
        num_partitions => Partitions,
        replication_factor => ReplicationFactor,
        assignments => [],
-       configs => []}],
-  nil_result(brod:create_topics(Hosts, Topics, #{timeout => 1000})).
+       configs => MapConfigs}],
+  nil_result(brod:create_topics(TupleHosts, Topics, #{timeout => Timeout})).
 
 start_topic_subscriber(Client,
                        Topic,
@@ -87,7 +89,7 @@ start_topic_subscriber(Client,
   P = case Partitions of
         all ->
           all;
-        {list, PartitionList} ->
+        {partitions, PartitionList} ->
           PartitionList
       end,
   brod_topic_subscriber:start_link(Client#franz_client.name,
@@ -170,10 +172,23 @@ start_group_subscriber(Client,
   brod_group_subscriber_v2:start_link(Args).
 
 start_producer(Client, Topic, ProducerConfig) ->
-  brod:start_producer(Client#franz_client.name, Topic, ProducerConfig).
+  nil_result(brod:start_producer(Client#franz_client.name, Topic, ProducerConfig)).
 
 stop_group_subscriber(Pid) ->
   case brod_group_subscriber_v2:stop(Pid) of
     ok ->
       {ok, nil}
   end.
+
+list_groups({endpoint, Hostname, Port}) ->
+  case brod:list_groups({Hostname, Port}, []) of
+    {ok, Groups} ->
+      {ok, lists:map(fun({brod_cg, Id, Type}) -> {consumer_group, Id, Type} end, Groups)};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+delete_topics(Endpoints, Topics, Timeout) ->
+  TupleEndpoints =
+    lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
+  nil_result(brod:delete_topics(TupleEndpoints, Topics, Timeout)).

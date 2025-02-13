@@ -37,12 +37,12 @@ fn start_topic_subscriber(
 
 /// Create a new topic subscriber builder.
 pub fn new(
-  client: franz.FranzClient,
-  topic: String,
-  partitions: partitions.Partitions,
-  message_type: message_type.MessageType,
-  callback: fn(Int, franz.KafkaMessage, callback_init_state) -> Ack,
-  init_callback_state: callback_init_state,
+  client client: franz.FranzClient,
+  topic topic: String,
+  partitions partitions: partitions.Partitions,
+  message_type message_type: message_type.MessageType,
+  callback callback: fn(Int, franz.KafkaMessage, callback_init_state) -> Ack,
+  init_callback_state init_callback_state: callback_init_state,
 ) -> Builder(callback_init_state) {
   Builder(
     client,
@@ -68,10 +68,11 @@ pub fn with_config(
 }
 
 /// Add a commited offset to the topic subscriber builder.
+/// CommittedOffsets are the offsets for the messages that have been successfully processed (acknowledged), not the begin-offset to start fetching from
 pub fn with_commited_offset(
   builder: Builder(callback_init_state),
-  partition: Int,
-  offset: Int,
+  partition partition: Int,
+  offset offset: Int,
 ) -> Builder(callback_init_state) {
   Builder(..builder, commited_offsets: [
     #(partition, offset),

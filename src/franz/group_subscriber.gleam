@@ -41,12 +41,13 @@ fn start_group_subscriber(
 
 /// Create a new group subscriber builder.
 pub fn new(
-  client: franz.FranzClient,
-  group_id: String,
-  topics: List(String),
-  message_type: message_type.MessageType,
-  callback: fn(franz.KafkaMessage, callback_init_state) -> CallbackReturn,
-  init_callback_state: callback_init_state,
+  client client: franz.FranzClient,
+  group_id group_id: String,
+  topics topics: List(String),
+  message_type message_type: message_type.MessageType,
+  callback callback: fn(franz.KafkaMessage, callback_init_state) ->
+    CallbackReturn,
+  init_callback_state init_callback_state: callback_init_state,
 ) -> GroupBuilder(callback_init_state) {
   GroupBuilder(
     client,

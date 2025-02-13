@@ -1,4 +1,4 @@
 pub type Partitions {
-  Partititons(List(Int))
+  Partitions(List(Int))
   All
 }

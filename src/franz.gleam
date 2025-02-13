@@ -37,6 +37,10 @@ pub type TimeStampType {
   Append
 }
 
+pub type Endpoint {
+  Endpoint(host: String, port: Int)
+}
+
 pub type FetchOption {
   /// The maximum time (in millis) to block wait until there are enough messages that have in sum at least min_bytes bytes.
   /// The waiting will end as soon as either min_bytes is satisfied or max_wait_time is exceeded, whichever comes first.
@@ -59,17 +63,17 @@ pub type FetchOption {
 }
 
 pub type ClientConfig {
-  /// How long to wait between attempts to restart brod_client process when it crashes.
+  /// How long to wait between attempts to restart FranzClient process when it crashes.
   /// Default: 10 seconds
   RestartDelaySeconds(Int)
   /// Delay this configured number of seconds before retrying to establish a new connection to the kafka partition leader.
   /// Default: 1 second
   ReconnectCoolDownSeconds(Int)
-  /// By default, brod respects what is configured in the broker about topic auto-creation. i.e. whether auto.create.topics.enable is set in the broker configuration.
-  /// However if allow_topic_auto_creation is set to false in client config, brod will avoid sending metadata requests that may cause an auto-creation of the topic regardless of what broker config is.
+  /// By default, Franz respects what is configured in the broker about topic auto-creation. i.e. whether auto.create.topics.enable is set in the broker configuration.
+  /// However if allow_topic_auto_creation is set to false in client config, Franz will avoid sending metadata requests that may cause an auto-creation of the topic regardless of what broker config is.
   /// Default: true
   AllowTopicAutoCreation(Bool)
-  /// If true, brod client will spawn a producer automatically when user is trying to call produce but did not call brod:start_producer explicitly. 
+  /// If true, Franz client will spawn a producer automatically when user is trying to call produce but did not call Franz.start_client() explicitly. 
   /// Can be useful for applications which don't know beforehand which topics they will be working with.
   /// Default: false
   AutoStartProducers(Bool)
@@ -81,21 +85,22 @@ pub type ClientConfig {
   UnknownTopicCacheTtl(Int)
 }
 
+pub type ConsumerGroup {
+  ConsumerGroup(group_id: String, protocol_type: String)
+}
+
 pub opaque type ClientBuilder {
-  ClientBuilder(
-    bootstrap_endpoints: List(#(String, Int)),
-    config: List(ClientConfig),
-  )
+  ClientBuilder(bootstrap_endpoints: List(Endpoint), config: List(ClientConfig))
 }
 
 @external(erlang, "franz_ffi", "start_client")
-fn start_client(
-  bootstrap_endpoints: List(#(String, Int)),
+fn do_start(
+  bootstrap_endpoints: List(Endpoint),
   client_config: List(ClientConfig),
 ) -> Result(FranzClient, FranzError)
 
 /// Create a new client builder with the given bootstrap endpoints.
-pub fn new_client(bootstrap_endpoints: List(#(String, Int))) -> ClientBuilder {
+pub fn new(bootstrap_endpoints: List(Endpoint)) -> ClientBuilder {
   ClientBuilder(bootstrap_endpoints, [])
 }
 
@@ -112,7 +117,7 @@ pub fn with_config(
 
 /// Start a new client with the given configuration.
 pub fn start(client_builder: ClientBuilder) -> Result(FranzClient, FranzError) {
-  start_client(client_builder.bootstrap_endpoints, client_builder.config)
+  do_start(client_builder.bootstrap_endpoints, client_builder.config)
 }
 
 /// Stops a client.
@@ -122,10 +127,12 @@ pub fn stop_client(client: FranzClient) -> Nil
 /// Create a new topic with the given number of partitions and replication factor.
 @external(erlang, "franz_ffi", "create_topic")
 pub fn create_topic(
-  bootstrap_endpoints: List(#(String, Int)),
-  topic: String,
-  partitions: Int,
-  replication_factor: Int,
+  endpoints endpoints: List(Endpoint),
+  name name: String,
+  partitions partitions: Int,
+  replication_factor replication_factor: Int,
+  configs configs: List(#(String, String)),
+  timeout_ms timeout: Int,
 ) -> Result(Nil, FranzError)
 
 /// Fetch a single message set from the given topic-partition.
@@ -133,9 +140,22 @@ pub fn create_topic(
 /// In essence, this is the offset up to which it was possible to read the messages at the time of fetching
 @external(erlang, "franz_ffi", "fetch")
 pub fn fetch(
-  client: FranzClient,
-  topic: String,
-  partition: Int,
-  offset: Int,
-  fetch_options: List(FetchOption),
+  client client: FranzClient,
+  topic topic: String,
+  partition partition: Int,
+  offset offset: Int,
+  options fetch_options: List(FetchOption),
 ) -> Result(#(Int, KafkaMessage), FranzError)
+
+/// List consumer groups in the given group coordinator broker.
+@external(erlang, "franz_ffi", "list_groups")
+pub fn list_consumer_groups(
+  bootstrap_endpoint: Endpoint,
+) -> Result(ConsumerGroup, FranzError)
+
+@external(erlang, "franz_ffi", "delete_topics")
+pub fn delete_topics(
+  endpoints endpoints: List(Endpoint),
+  names names: List(String),
+  timeout_ms timeout: Int,
+) -> Result(Nil, FranzError)
