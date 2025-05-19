@@ -14,13 +14,6 @@ pub fn main() {
   gleeunit.main()
 }
 
-fn create_client() {
-  let endpoint = franz.Endpoint("localhost", 9092)
-  franz.new([endpoint])
-  |> franz.start()
-  |> should.be_ok()
-}
-
 pub fn create_topic() {
   let topic = "test_topic"
   let endpoint = franz.Endpoint("127.0.0.1", 9092)
