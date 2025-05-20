@@ -243,7 +243,7 @@ pub fn start_group_subscriber_test() {
     callback: fn(message: franz.KafkaMessage, cb_state) {
       let assert franz.KafkaMessage(
         offset,
-        <<"key">>,
+        <<"ky">>,
         <<"value">>,
         franz.Create,
         _timestamp,
