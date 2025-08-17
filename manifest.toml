@@ -2,16 +2,16 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "brod", version = "4.3.3", build_tools = ["rebar3"], requirements = ["kafka_protocol"], otp_app = "brod", source = "hex", outer_checksum = "E5A7AEFCC0590C548A9759D66B929BEF03876194CEA521A775BAA4DFDDA8ED16" },
-  { name = "crc32cer", version = "0.1.11", build_tools = ["rebar3"], requirements = [], otp_app = "crc32cer", source = "hex", outer_checksum = "A39B8F0B1990AC1BF06C3A247FC6A178B740CDFC33C3B53688DC7DD6B1855942" },
-  { name = "gleam_erlang", version = "0.34.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "0C38F2A128BAA0CEF17C3000BD2097EB80634E239CE31A86400C4416A5D0FDCC" },
-  { name = "gleam_stdlib", version = "0.54.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "723BA61A2BAE8D67406E59DD88CEA1B3C3F266FC8D70F64BE9FEC81B4505B927" },
-  { name = "gleeunit", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "0E6C83834BA65EDCAAF4FE4FB94AC697D9262D83E6F58A750D63C9F6C8A9D9FF" },
-  { name = "kafka_protocol", version = "4.1.10", build_tools = ["rebar3"], requirements = ["crc32cer"], otp_app = "kafka_protocol", source = "hex", outer_checksum = "DF680A3706EAD8695F8B306897C0A33E8063C690DA9308DB87B462CFD7029D04" },
+  { name = "brod", version = "4.4.5", build_tools = ["rebar3"], requirements = ["kafka_protocol"], otp_app = "brod", source = "hex", outer_checksum = "169E1831DC9AA61C6654D73A44F4017C972F02D3847EF66A5816C4D4593D0D64" },
+  { name = "crc32cer", version = "1.0.3", build_tools = ["rebar3"], requirements = [], otp_app = "crc32cer", source = "hex", outer_checksum = "08FDCD5CE51ACD839A12E98742F0F0EDA19A2A679FC9FBFAF6AAB958310FB70E" },
+  { name = "gleam_erlang", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "1124AD3AA21143E5AF0FC5CF3D9529F6DB8CA03E43A55711B60B6B7B3874375C" },
+  { name = "gleam_stdlib", version = "0.62.1", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "0080706D3A5A9A36C40C68481D1D231D243AF602E6D2A2BE67BA8F8F4DFF45EC" },
+  { name = "gleeunit", version = "1.6.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "FDC68A8C492B1E9B429249062CD9BAC9B5538C6FBF584817205D0998C42E1DAC" },
+  { name = "kafka_protocol", version = "4.2.7", build_tools = ["rebar3"], requirements = ["crc32cer"], otp_app = "kafka_protocol", source = "hex", outer_checksum = "1D5E9597AD3C0776C86DC5E08D3BAAEA7DB805A52E5FD35E3F071AAD7789FC4C" },
 ]
 
 [requirements]
 brod = { version = ">= 4.3.3 and < 5.0.0" }
-gleam_erlang = { version = ">= 0.34.0 and < 1.0.0" }
+gleam_erlang = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.44.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
