@@ -1,7 +1,14 @@
 import franz/isolation_level
 import franz/producer_config
+import gleam/erlang/process
+import gleam/int
+import gleam/otp/actor
+import gleam/otp/supervision
+import gleam/result
 
-pub type FranzClient
+pub type FranzClient {
+  FranzClient(name: process.Name(Message))
+}
 
 pub type FranzError {
   UnknownError
@@ -89,35 +96,73 @@ pub type ConsumerGroup {
   ConsumerGroup(group_id: String, protocol_type: String)
 }
 
-pub opaque type ClientBuilder {
-  ClientBuilder(bootstrap_endpoints: List(Endpoint), config: List(ClientConfig))
+pub opaque type Builder {
+  Builder(
+    bootstrap_endpoints: List(Endpoint),
+    config: List(ClientConfig),
+    name: process.Name(Message),
+  )
 }
 
 @external(erlang, "franz_ffi", "start_client")
 fn do_start(
   bootstrap_endpoints: List(Endpoint),
   client_config: List(ClientConfig),
-) -> Result(FranzClient, FranzError)
+  name: process.Name(Message),
+) -> Result(process.Pid, FranzError)
+
+pub type Message
 
 /// Create a new client builder with the given bootstrap endpoints.
-pub fn new(bootstrap_endpoints: List(Endpoint)) -> ClientBuilder {
-  ClientBuilder(bootstrap_endpoints, [])
+pub fn new(
+  bootstrap_endpoints: List(Endpoint),
+  name: process.Name(Message),
+) -> Builder {
+  Builder(bootstrap_endpoints:, config: [], name:)
 }
 
 /// Add a client configuration to the client builder.
 pub fn with_config(
-  client_builder: ClientBuilder,
+  client_builder: Builder,
   client_config: ClientConfig,
-) -> ClientBuilder {
-  ClientBuilder(..client_builder, config: [
-    client_config,
-    ..client_builder.config
-  ])
+) -> Builder {
+  Builder(..client_builder, config: [client_config, ..client_builder.config])
 }
 
 /// Start a new client with the given configuration.
-pub fn start(client_builder: ClientBuilder) -> Result(FranzClient, FranzError) {
-  do_start(client_builder.bootstrap_endpoints, client_builder.config)
+pub fn start(client_builder: Builder) -> actor.StartResult(FranzClient) {
+  use client <- result.try(
+    do_start(
+      client_builder.bootstrap_endpoints,
+      client_builder.config,
+      client_builder.name,
+    )
+    |> result.map_error(fn(error) {
+      case error {
+        UnknownError -> actor.InitFailed("Unknown error occurred")
+        ClientDown -> actor.InitFailed("Client process is down")
+        UnknownTopicOrPartition ->
+          actor.InitFailed("Unknown topic or partition")
+        ProducerDown -> actor.InitFailed("Producer process is down")
+        TopicAlreadyExists -> actor.InitFailed("Topic already exists")
+        ConsumerNotFound(string) ->
+          actor.InitFailed("Consumer not found: " <> string)
+        ProducerNotFound(string, partition) ->
+          actor.InitFailed(
+            "Producer not found: "
+            <> string
+            <> " with partition "
+            <> int.to_string(partition),
+          )
+        OffsetOutOfRange -> actor.InitFailed("Offset out of range")
+      }
+    }),
+  )
+  Ok(actor.Started(client, named_client(client_builder.name)))
+}
+
+pub fn named_client(name: process.Name(Message)) -> FranzClient {
+  FranzClient(name)
 }
 
 /// Stops a client.
@@ -153,3 +198,7 @@ pub fn delete_topics(
   names names: List(String),
   timeout_ms timeout: Int,
 ) -> Result(Nil, FranzError)
+
+pub fn supervised(builder) {
+  supervision.worker(fn() { start(builder) })
+}

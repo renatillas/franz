@@ -1,11 +1,11 @@
 -module(franz_ffi).
 
 -export([produce_no_ack/5, delete_topics/3, list_groups/1, stop_group_subscriber/1,
-         fetch/5, produce_cb/6, stop_client/1, produce_sync/5, start_client/2,
+         fetch/5, produce_cb/6, stop_client/1, produce_sync/5, start_client/3,
          produce_sync_offset/5, create_topic/6, start_topic_subscriber/8, ack/1, commit/1,
          start_group_subscriber/8, start_producer/3]).
 
--record(franz_client, {name, pid}).
+-record(franz_client, {name}).
 
 nil_result(Result) ->
   case Result of
@@ -15,14 +15,12 @@ nil_result(Result) ->
       {error, Reason}
   end.
 
-start_client(Endpoints, ClientConfig) ->
-  Id = integer_to_list(erlang:unique_integer([positive])),
-  ClientName = list_to_atom("client" ++ Id),
+start_client(Endpoints, ClientConfig, ClientName) ->
   TupleEndpoints =
     lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
   case brod:start_link_client(TupleEndpoints, ClientName, ClientConfig) of
     {ok, Pid} ->
-      {ok, #franz_client{name = ClientName, pid = Pid}};
+      {ok, Pid};
     {error, Reason} ->
       {error, Reason}
   end.

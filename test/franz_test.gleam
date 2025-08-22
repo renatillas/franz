@@ -7,6 +7,8 @@ import franz/partitions
 import franz/producer
 import franz/producer_config
 import franz/topic_subscriber
+import gleam/erlang/process
+import gleam/otp/static_supervisor
 import gleeunit
 import gleeunit/should
 
@@ -31,20 +33,21 @@ pub fn create_topic() {
 }
 
 pub fn start_stop_client_test() {
+  let name = process.new_name("franz_test_client")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
 
-  franz.stop_client(client)
-  |> should.equal(Nil)
+  let client = franz.named_client(name)
+  let Nil = franz.stop_client(client)
 }
 
 pub fn start_client_with_config_test() {
+  let name = process.new_name("franz_test_client")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.with_config(franz.RestartDelaySeconds(100))
     |> franz.with_config(franz.ReconnectCoolDownSeconds(100))
     |> franz.with_config(franz.AllowTopicAutoCreation(True))
@@ -65,18 +68,20 @@ pub fn start_client_with_config_test() {
       ]),
     )
     |> franz.start()
-    |> should.be_ok()
 
-  franz.stop_client(client)
-  |> should.equal(Nil)
+  let client = franz.named_client(name)
+
+  let Nil = franz.stop_client(client)
 }
 
 pub fn produce_sync_test() {
+  let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
+
+  let client = franz.named_client(name)
 
   producer.new(client, "test_topic")
   |> producer.start()
@@ -93,11 +98,13 @@ pub fn produce_sync_test() {
 }
 
 pub fn produce_sync_offset_test() {
+  let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
+
+  let client = franz.named_client(name)
 
   producer.new(client, "test_topic")
   |> producer.start()
@@ -114,11 +121,13 @@ pub fn produce_sync_offset_test() {
 }
 
 pub fn produce_cb_test() {
+  let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
+
+  let client = franz.named_client(name)
 
   producer.new(client, "test_topic")
   |> producer.start()
@@ -140,11 +149,13 @@ pub fn produce_cb_test() {
 }
 
 pub fn produce_no_ack_test() {
+  let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
+
+  let client = franz.named_client(name)
 
   producer.new(client, "test_topic")
   |> producer.start()
@@ -161,12 +172,13 @@ pub fn produce_no_ack_test() {
 }
 
 pub fn start_producer_with_config_test() {
+  let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.start()
-    |> should.be_ok()
 
+  let client = franz.named_client(name)
   producer.new(client, "test_topic")
   |> producer.with_config(producer_config.RequiredAcks(1))
   |> producer.with_config(producer_config.RequiredAcks(1))
@@ -186,13 +198,14 @@ pub fn start_producer_with_config_test() {
 }
 
 pub fn start_topic_subscriber_test() {
+  let name = process.new_name("franz_test_topic_subscriber")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.with_config(franz.AutoStartProducers(True))
     |> franz.start()
-    |> should.be_ok()
 
+  let client = franz.named_client(name)
   topic_subscriber.new(
     client: client,
     topic: "test_topic",
@@ -228,12 +241,14 @@ pub fn start_topic_subscriber_test() {
 }
 
 pub fn start_group_subscriber_test() {
+  let name = process.new_name("franz_test_group_subscriber")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let client =
-    franz.new([endpoint])
+  let assert Ok(_) =
+    franz.new([endpoint], name)
     |> franz.with_config(franz.AutoStartProducers(True))
     |> franz.start()
-    |> should.be_ok()
+
+  let client = franz.named_client(name)
 
   group_subscriber.new(
     client: client,
@@ -267,5 +282,49 @@ pub fn start_group_subscriber_test() {
     key: <<"key">>,
     value: producer.Value(<<"value">>, []),
   )
+  |> should.be_ok()
+}
+
+pub fn supervised_test() {
+  let name = process.new_name("franz_test_supervised")
+  let endpoint = franz.Endpoint("localhost", 9092)
+  let child_spec =
+    franz.new([endpoint], name)
+    |> franz.with_config(franz.AutoStartProducers(True))
+    |> franz.supervised()
+
+  let assert Ok(_) =
+    static_supervisor.new(static_supervisor.OneForOne)
+    |> static_supervisor.add(child_spec)
+    |> static_supervisor.start()
+
+  let client = franz.named_client(name)
+
+  producer.new(client, "test_topic")
+  |> producer.start()
+  |> should.be_ok()
+
+  topic_subscriber.new(
+    client: client,
+    topic: "test_topic",
+    partitions: partitions.Partitions([0]),
+    message_type: message_type.Message,
+    callback: fn(partition, message, cb_state) {
+      partition |> should.equal(0)
+      let assert franz.KafkaMessage(
+        offset,
+        <<"key">>,
+        <<"value">>,
+        franz.Create,
+        _timestamp,
+        [],
+      ) = message
+      let assert True = offset > 0
+      topic_subscriber.ack(cb_state)
+    },
+    init_callback_state: 0,
+  )
+  |> topic_subscriber.with_commited_offset(partition: 0, offset: 0)
+  |> topic_subscriber.start()
   |> should.be_ok()
 }
