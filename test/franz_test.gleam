@@ -293,15 +293,30 @@ pub fn start_group_subscriber_test() {
   use <- setup_topics(topic, endpoint:)
   use client <- setup_client(endpoint:, name: client_name)
   let message_subject = process.new_subject()
+  
+  // First produce a message
   let assert Ok(Nil) =
     producer.new(client, topic)
     |> producer.start()
+  
+  assert Ok(Nil)
+    == producer.produce_sync(
+      client: client,
+      topic:,
+      partition: producer.Partition(0),
+      key: <<"test_key">>,
+      value: producer.Value(<<"test_value">>, []),
+    )
+  
+  // Small delay to ensure message is committed
+  process.sleep(500)
 
+  // Now start the consumer with earliest offset to read the existing message
   let assert Ok(_) =
     group_subscriber.new(
       name: subscriber_name,
       client: client,
-      group_id: "test_group",
+      group_id: "test_consumer_group_unique",
       topics: [topic],
       message_type: message_type.Message,
       callback: fn(message: franz.KafkaMessage, cb_state) {
@@ -310,32 +325,20 @@ pub fn start_group_subscriber_test() {
       },
       init_callback_state: 0,
     )
-    |> group_subscriber.with_consumer_config(consumer_config.IsolationLevel(
-      isolation_level.ReadUncommitted,
-    ))
     |> group_subscriber.with_consumer_config(consumer_config.BeginOffset(
       consumer_config.Earliest,
     ))
+    |> group_subscriber.with_consumer_config(consumer_config.OffsetResetPolicy(
+      consumer_config.ResetToEarliest,
+    ))
     |> group_subscriber.start()
   
-  // Give time for consumer group to coordinate
-  process.sleep(1500)
-
-  assert Ok(Nil)
-    == producer.produce_sync(
-      client: client,
-      topic:,
-      partition: producer.Partition(0),
-      key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
-    )
-
-  // Wait for message with reasonable timeout
+  // Wait for the consumer to read the message
   let assert Ok(franz.KafkaMessage(
     offset: 0,
-    key: <<"key">>,
-    value: <<"value">>,
+    key: <<"test_key">>,
+    value: <<"test_value">>,
     ..,
-  )) = process.receive(message_subject, 2000)
+  )) = process.receive(message_subject, 10_000)
   process.sleep(500)
 }

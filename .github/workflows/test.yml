@@ -38,9 +38,14 @@ jobs:
       - run: gleam deps download
       - run: |
           # Wait for Kafka to be fully ready
-          sleep 15
-          # Test Kafka connectivity
+          sleep 20
+          # Test Kafka connectivity on both addresses
+          echo "Testing localhost:9092..."
           nc -zv localhost 9092 || true
+          echo "kafka_runner_address: $kafka_runner_address"
+          echo "Testing $kafka_runner_address:9093..."
+          nc -zv $kafka_runner_address 9093 || true
+          # Run tests
           gleam test
         env:
           CI: true
