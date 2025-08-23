@@ -1,22 +1,25 @@
 import franz/isolation_level
-import franz/producer_config
+import franz/producer/config as producer_config
 import gleam/dynamic
 import gleam/erlang/process
 import gleam/otp/actor
 import gleam/otp/supervision
 
+/// A Franz client that manages connections to Kafka brokers.
+/// The client is identified by a process name and handles all communication with Kafka.
 pub type Client {
   Client(name: process.Name(Message))
 }
 
+/// Errors that can occur when interacting with Kafka through Franz.
 pub type FranzError {
   UnknownError
   ClientDown
   UnknownTopicOrPartition
   ProducerDown
   TopicAlreadyExists
-  ConsumerNotFound(String)
-  ProducerNotFound(String, Int)
+  ConsumerNotFound(topic: String, partition: Int)
+  ProducerNotFound(topic: String, partition: Int)
   OffsetOutOfRange
   CorruptMessage
   InvalidFetchSize
@@ -58,6 +61,7 @@ pub type FranzError {
   NotController
 }
 
+/// Represents a message or message set received from Kafka.
 pub type KafkaMessage {
   KafkaMessage(
     offset: Int,
@@ -75,16 +79,22 @@ pub type KafkaMessage {
   )
 }
 
+/// The type of timestamp associated with a Kafka message.
 pub type TimeStampType {
+  /// Timestamp type is not defined.
   Undefined
+  /// Timestamp set when the message was created.
   Create
+  /// Timestamp set when the message was appended to the log.
   Append
 }
 
+/// A Kafka broker endpoint consisting of a host and port.
 pub type Endpoint {
   Endpoint(host: String, port: Int)
 }
 
+/// Options for fetching messages from Kafka.
 pub type FetchOption {
   /// The maximum time (in millis) to block wait until there are enough messages that have in sum at least min_bytes bytes.
   /// The waiting will end as soon as either min_bytes is satisfied or max_wait_time is exceeded, whichever comes first.
@@ -106,6 +116,7 @@ pub type FetchOption {
   IsolationLevel(isolation_level.IsolationLevel)
 }
 
+/// Configuration options for the Franz client.
 pub type ClientConfig {
   /// How long to wait between attempts to restart FranzClient process when it crashes.
   /// Default: 10 seconds
@@ -123,16 +134,18 @@ pub type ClientConfig {
   AutoStartProducers(Bool)
   /// Producer configuration to use when auto_start_producers is true.
   /// Default: []
-  DefaultProducerConfig(List(producer_config.ProducerConfig))
+  DefaultProducerConfig(List(producer_config.Config))
   /// For how long unknown_topic error will be cached, in ms.
   /// Default: 120000
   UnknownTopicCacheTtl(Int)
 }
 
+/// Represents a Kafka consumer group.
 pub type ConsumerGroup {
   ConsumerGroup(group_id: String, protocol_type: String)
 }
 
+/// A builder for creating and configuring a Franz client.
 pub opaque type Builder {
   Builder(
     bootstrap_endpoints: List(Endpoint),
@@ -148,9 +161,12 @@ fn do_start(
   name: process.Name(Message),
 ) -> Result(process.Pid, dynamic.Dynamic)
 
+/// Internal message type used by the Franz client process.
 pub type Message
 
-/// Create a new client builder with the given bootstrap endpoints.
+/// Creates a new client builder with the given bootstrap endpoints.
+/// The bootstrap endpoints are the initial Kafka brokers to connect to.
+/// The name parameter is used to identify the client process.
 pub fn new(
   bootstrap_endpoints: List(Endpoint),
   name: process.Name(Message),
@@ -158,7 +174,8 @@ pub fn new(
   Builder(bootstrap_endpoints:, config: [], name:)
 }
 
-/// Add a client configuration to the client builder.
+/// Adds a client configuration option to the client builder.
+/// Multiple configurations can be chained together.
 pub fn with_config(
   client_builder: Builder,
   client_config: ClientConfig,
@@ -166,7 +183,8 @@ pub fn with_config(
   Builder(..client_builder, config: [client_config, ..client_builder.config])
 }
 
-/// Start a new client with the given configuration.
+/// Starts a new Franz client with the configured settings.
+/// Returns an actor.StartResult that contains the client on success.
 pub fn start(client_builder: Builder) -> actor.StartResult(Client) {
   case
     do_start(
@@ -180,7 +198,8 @@ pub fn start(client_builder: Builder) -> actor.StartResult(Client) {
   }
 }
 
-// Get the named client from a process name.
+/// Gets a client reference from a process name.
+/// Useful when you need to reference an existing named client.
 pub fn named_client(name: process.Name(Message)) -> Client {
   Client(name)
 }
@@ -219,6 +238,8 @@ pub fn delete_topics(
   timeout_ms timeout: Int,
 ) -> Result(Nil, FranzError)
 
+/// Creates a supervised worker for the Franz client.
+/// This can be used with Gleam's OTP supervision trees to ensure the client is restarted on failure.
 pub fn supervised(builder) {
   supervision.worker(fn() { start(builder) })
 }

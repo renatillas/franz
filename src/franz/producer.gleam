@@ -1,11 +1,13 @@
 import franz
-import franz/producer_config
+import franz/producer/config
 
-pub type ProducerPartition {
+/// Specifies how to select the partition for produced messages.
+pub type Partition {
   Partition(Int)
   Partitioner(Partitioner)
 }
 
+/// Different strategies for partitioning messages across Kafka partitions.
 pub type Partitioner {
   /// Partititoner function with Topic, PartitionCount, Key and Value that should return a partition number.
   PartitionFun(fn(String, Int, BitArray, BitArray) -> Result(Int, Nil))
@@ -15,14 +17,12 @@ pub type Partitioner {
   Hash
 }
 
+/// A builder for creating and configuring a Kafka producer.
 pub opaque type Builder {
-  Builder(
-    client: franz.Client,
-    topic: String,
-    configs: List(producer_config.ProducerConfig),
-  )
+  Builder(client: franz.Client, topic: String, configs: List(config.Config))
 }
 
+/// The value to be produced to Kafka, optionally with headers and timestamp.
 pub type Value {
   Value(value: BitArray, headers: List(#(String, String)))
   ValueWithTimestamp(
@@ -32,10 +32,12 @@ pub type Value {
   )
 }
 
+/// Wrapper type for partition numbers in callbacks.
 pub type CbPartition {
   CbPartition(Int)
 }
 
+/// Wrapper type for message offsets in callbacks.
 pub type CbOffset {
   CbOffset(Int)
 }
@@ -46,10 +48,7 @@ pub fn new(client: franz.Client, topic: String) -> Builder {
 }
 
 /// Add a producer configuration to the producer builder.
-pub fn with_config(
-  builder: Builder,
-  config: producer_config.ProducerConfig,
-) -> Builder {
+pub fn with_config(builder: Builder, config: config.Config) -> Builder {
   Builder(builder.client, builder.topic, [config, ..builder.configs])
 }
 
@@ -63,7 +62,7 @@ pub fn start(builder: Builder) -> Result(Nil, franz.FranzError) {
 fn do_start(
   client: franz.Client,
   topic: String,
-  consumer_config: List(producer_config.ProducerConfig),
+  config: List(config.Config),
 ) -> Result(Nil, franz.FranzError)
 
 /// Produce one or more messages.
@@ -72,7 +71,7 @@ fn do_start(
 pub fn produce_no_ack(
   client client: franz.Client,
   topic topic: String,
-  partition partition: ProducerPartition,
+  partition partition: Partition,
   key key: BitArray,
   value value: Value,
 ) -> Result(Nil, franz.FranzError)
@@ -84,7 +83,7 @@ pub fn produce_no_ack(
 pub fn produce_sync_offset(
   client client: franz.Client,
   topic topic: String,
-  partition partition: ProducerPartition,
+  partition partition: Partition,
   key key: BitArray,
   value value: Value,
 ) -> Result(Int, franz.FranzError)
@@ -95,7 +94,7 @@ pub fn produce_sync_offset(
 pub fn produce_sync(
   client client: franz.Client,
   topic topic: String,
-  partition partition: ProducerPartition,
+  partition partition: Partition,
   key key: BitArray,
   value value: Value,
 ) -> Result(Nil, franz.FranzError)
@@ -108,8 +107,8 @@ pub fn produce_sync(
 pub fn produce_cb(
   client client: franz.Client,
   topic topic: String,
-  partition partition: ProducerPartition,
+  partition partition: Partition,
   key key: BitArray,
   value value: Value,
   callback callback: fn(CbPartition, CbOffset) -> any,
-) -> Result(Int, franz.FranzError)
+) -> Result(Partition, franz.FranzError)

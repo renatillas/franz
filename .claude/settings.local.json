@@ -13,7 +13,8 @@
       "Bash(erl:*)",
       "Bash(gleam run:*)",
       "Bash(nc:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(awk:*)"
     ]
   },
   "enableAllProjectMcpServers": false

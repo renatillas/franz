@@ -5,8 +5,6 @@
          produce_sync_offset/5, create_topic/6, start_topic_subscriber/8, ack/1, commit/1,
          start_group_subscriber/8, start_producer/3, map_error/1]).
 
--record(client, {name}).
-
 nil_result(Result) ->
   case Result of
     ok ->
@@ -116,9 +114,9 @@ map_error(Reason) ->
     {producer_not_found, Topic, Partition} ->
       {producer_not_found, Topic, Partition};
     {consumer_not_found, Topic} ->
-      {consumer_not_found, Topic};
-    {consumer_not_found, Topic, _Partition} ->
-      {consumer_not_found, Topic};
+      {consumer_not_found, Topic, 0};
+    {consumer_not_found, Topic, Partition} ->
+      {consumer_not_found, Topic, Partition};
     % Handle binary string errors from Kafka
     Error when is_binary(Error) ->
       ErrorStr = binary_to_list(Error),
@@ -154,28 +152,32 @@ start_client(Endpoints, ClientConfig, ClientName) ->
   end.
 
 produce_sync_offset(Client, Topic, Partition, Key, Value) ->
-  brod:produce_sync_offset(Client#client.name,
+  {client, ClientName} = Client,
+  brod:produce_sync_offset(ClientName,
                            Topic,
                            consumer_partition(Partition),
                            Key,
                            value(Value)).
 
 produce_sync(Client, Topic, Partition, Key, Value) ->
-  nil_result(brod:produce_sync(Client#client.name,
+  {client, ClientName} = Client,
+  nil_result(brod:produce_sync(ClientName,
                                Topic,
                                consumer_partition(Partition),
                                Key,
                                value(Value))).
 
 produce_no_ack(Client, Topic, Partition, Key, Value) ->
-  nil_result(brod:produce_no_ack(Client#client.name,
+  {client, ClientName} = Client,
+  nil_result(brod:produce_no_ack(ClientName,
                                  Topic,
                                  consumer_partition(Partition),
                                  Key,
                                  value(Value))).
 
 produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
-  case brod:produce_cb(Client#client.name,
+  {client, ClientName} = Client,
+  case brod:produce_cb(ClientName,
                        Topic,
                        consumer_partition(Partition),
                        Key,
@@ -254,7 +256,8 @@ start_topic_subscriber(Client,
         {partitions, PartitionList} ->
           PartitionList
       end,
-  brod_topic_subscriber:start_link(Client#client.name,
+  {client, ClientName} = Client,
+  brod_topic_subscriber:start_link(ClientName,
                                    Topic,
                                    P,
                                    ConsumerConfig,
@@ -279,11 +282,13 @@ consumer_config(Options) ->
             Options).
 
 stop_client(Client) ->
-  brod:stop_client(Client#client.name),
+  {client, ClientName} = Client,
+  brod:stop_client(ClientName),
   nil.
 
 fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
-  brod:fetch(Client#client.name, Topic, Partition, Offset, proplists:to_map(OffsetOptions)).
+  {client, ClientName} = Client,
+  brod:fetch(ClientName, Topic, Partition, Offset, proplists:to_map(OffsetOptions)).
 
 value(Value) ->
   case Value of
@@ -318,8 +323,9 @@ start_group_subscriber(Client,
                        CbFun,
                        CbInitialState) ->
   InitData = #cbm_init_data{cb_fun = CbFun, cb_data = CbInitialState},
+  {client, ClientName} = Client,
   Args =
-    #{client => Client#client.name,
+    #{client => ClientName,
       group_id => GroupId,
       topics => Topics,
       cb_module => franz_group_subscriber_cb_fun,
@@ -330,7 +336,8 @@ start_group_subscriber(Client,
   brod_group_subscriber_v2:start_link(Args).
 
 start_producer(Client, Topic, ProducerConfig) ->
-  nil_result(brod:start_producer(Client#client.name, Topic, ProducerConfig)).
+  {client, ClientName} = Client,
+  nil_result(brod:start_producer(ClientName, Topic, ProducerConfig)).
 
 stop_group_subscriber(Pid) ->
   case brod_group_subscriber_v2:stop(Pid) of

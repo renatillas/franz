@@ -1,4 +1,5 @@
-pub type ProducerConfig {
+/// Configuration options for Kafka producers.
+pub type Config {
   /// How many acknowledgements the kafka broker should receive from the clustered replicas before acking producer.
   ///  0: the broker will not send any response (this is the only case where the broker will not reply to a request) 
   ///  1: The leader will wait the data is written to the local log before sending a response. 
@@ -45,11 +46,12 @@ pub type ProducerConfig {
   MaxLingerCount(Int)
 }
 
+/// Compression algorithms available for message batching.
 pub type Compression {
-  /// Default value
+  /// No compression (default).
   NoCompression
-  /// Gzip compression
+  /// Gzip compression algorithm.
   Gzip
-  /// Snappy compression
+  /// Snappy compression algorithm.
   Snappy
 }

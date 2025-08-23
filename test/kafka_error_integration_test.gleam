@@ -1,10 +1,8 @@
-// INTEGRATION TESTS - Run these manually with Kafka running
-// These tests demonstrate that the error mapping works with real Kafka errors
-// To run: Ensure Kafka is running on localhost:9092 
-
 import franz
 import franz/producer
+import gleam/dynamic/decode
 import gleam/erlang/process
+import gleam/otp/actor
 import gleam/result
 import gleeunit/should
 
@@ -13,37 +11,24 @@ import gleeunit/should
 pub fn broker_not_available_test_skip() {
   let name = process.new_name("broker_not_available_test")
   let endpoint = franz.Endpoint("127.0.0.1", 9999)
-  // Non-existent port
 
-  let result =
+  let assert Error(actor.InitExited(process.Abnormal(dynamic))) =
     franz.new([endpoint], name)
     |> franz.start()
 
-  // Connection might succeed even with wrong broker (lazy connection)
-  // So let's try to actually use it
-  case result {
-    Ok(_) -> {
-      let client = franz.named_client(name)
-      // Try to create topic on non-existent broker
-      let topic_result =
-        franz.create_topic(
-          endpoints: [endpoint],
-          name: "test_broker_error",
-          partitions: 1,
-          replication_factor: 1,
-          configs: [],
-          timeout_ms: 1000,
-        )
-      case topic_result {
-        Error(_) -> Nil
-        // Expected some error
-        Ok(_) -> panic as "Should fail with non-existent broker"
+  assert Ok(franz.BrokerNotAvailable)
+    == decode.string
+    |> decode.then(fn(decoded_string) {
+      case decoded_string {
+        "BrokerNotAvailable" -> decode.success(franz.BrokerNotAvailable)
+        _ ->
+          decode.failure(
+            franz.UnknownError,
+            "Unexpected error: " <> decoded_string,
+          )
       }
-      franz.stop_client(client)
-    }
-    Error(_) -> Nil
-    // Connection failed immediately - also good
-  }
+    })
+    |> decode.run(dynamic, _)
 }
 
 // Test 2: UnknownTopicOrPartition - Fetch from non-existent topic with auto-creation disabled

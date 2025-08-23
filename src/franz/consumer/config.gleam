@@ -1,6 +1,7 @@
 import franz/isolation_level
 
-pub type ConsumerConfig {
+/// Configuration options for Kafka consumers.
+pub type Config {
   /// The offset from which to begin fetch requests. A subscriber may consume and process messages, then persist the associated offset to a persistent storage, then start (or restart) from last_processed_offset + 1 as the begin_offset to proceed. The offset has to already exist at the time of calling.
   /// Default: Latest
   BeginOffset(OffsetTime)
@@ -37,16 +38,22 @@ pub type ConsumerConfig {
   ShareLeaderConn(Bool)
 }
 
+/// Specifies the starting offset position for message consumption.
 pub type OffsetTime {
-  /// Default value
+  /// Start consuming from the latest available message (default).
   Latest
+  /// Start consuming from the earliest available message.
   Earliest
+  /// Start consuming from a specific timestamp.
   MessageTimestamp(Int)
 }
 
+/// Policy for handling offset out of range errors.
 pub type OffsetResetPolicy {
-  /// Default value
+  /// Let the subscriber handle the reset (default).
   ResetBySubscriber
+  /// Reset to the earliest available offset.
   ResetToEarliest
+  /// Reset to the latest available offset.
   ResetToLatest
 }
