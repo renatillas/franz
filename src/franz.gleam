@@ -1,13 +1,12 @@
 import franz/isolation_level
 import franz/producer_config
+import gleam/dynamic
 import gleam/erlang/process
-import gleam/int
 import gleam/otp/actor
 import gleam/otp/supervision
-import gleam/result
 
-pub type FranzClient {
-  FranzClient(name: process.Name(Message))
+pub type Client {
+  Client(name: process.Name(Message))
 }
 
 pub type FranzError {
@@ -147,7 +146,7 @@ fn do_start(
   bootstrap_endpoints: List(Endpoint),
   client_config: List(ClientConfig),
   name: process.Name(Message),
-) -> Result(process.Pid, FranzError)
+) -> Result(process.Pid, dynamic.Dynamic)
 
 pub type Message
 
@@ -168,82 +167,27 @@ pub fn with_config(
 }
 
 /// Start a new client with the given configuration.
-pub fn start(client_builder: Builder) -> actor.StartResult(FranzClient) {
-  use client <- result.try(
+pub fn start(client_builder: Builder) -> actor.StartResult(Client) {
+  case
     do_start(
       client_builder.bootstrap_endpoints,
       client_builder.config,
       client_builder.name,
     )
-    |> result.map_error(fn(error) {
-      case error {
-        UnknownError -> actor.InitFailed("Unknown error occurred")
-        ClientDown -> actor.InitFailed("Client process is down")
-        UnknownTopicOrPartition ->
-          actor.InitFailed("Unknown topic or partition")
-        ProducerDown -> actor.InitFailed("Producer process is down")
-        TopicAlreadyExists -> actor.InitFailed("Topic already exists")
-        ConsumerNotFound(string) ->
-          actor.InitFailed("Consumer not found: " <> string)
-        ProducerNotFound(string, partition) ->
-          actor.InitFailed(
-            "Producer not found: "
-            <> string
-            <> " with partition "
-            <> int.to_string(partition),
-          )
-        OffsetOutOfRange -> actor.InitFailed("Offset out of range")
-        CorruptMessage -> actor.InitFailed("Corrupt message")
-        InvalidFetchSize -> actor.InitFailed("Invalid fetch size")
-        LeaderNotAvailable -> actor.InitFailed("Leader not available")
-        NotLeaderOrFollower -> actor.InitFailed("Not leader or follower")
-        RequestTimedOut -> actor.InitFailed("Request timed out")
-        BrokerNotAvailable -> actor.InitFailed("Broker not available")
-        ReplicaNotAvailable -> actor.InitFailed("Replica not available")
-        MessageTooLarge -> actor.InitFailed("Message too large")
-        NetworkException -> actor.InitFailed("Network exception")
-        CoordinatorLoadInProgress -> actor.InitFailed("Coordinator load in progress")
-        CoordinatorNotAvailable -> actor.InitFailed("Coordinator not available")
-        NotCoordinator -> actor.InitFailed("Not coordinator")
-        IllegalGeneration -> actor.InitFailed("Illegal generation")
-        InconsistentGroupProtocol -> actor.InitFailed("Inconsistent group protocol")
-        InvalidGroupId -> actor.InitFailed("Invalid group ID")
-        UnknownMemberId -> actor.InitFailed("Unknown member ID")
-        InvalidSessionTimeout -> actor.InitFailed("Invalid session timeout")
-        RebalanceInProgress -> actor.InitFailed("Rebalance in progress")
-        InvalidCommitOffsetSize -> actor.InitFailed("Invalid commit offset size")
-        TopicAuthorizationFailed -> actor.InitFailed("Topic authorization failed")
-        GroupAuthorizationFailed -> actor.InitFailed("Group authorization failed")
-        ClusterAuthorizationFailed -> actor.InitFailed("Cluster authorization failed")
-        InvalidTopic -> actor.InitFailed("Invalid topic")
-        RecordListTooLarge -> actor.InitFailed("Record list too large")
-        NotEnoughReplicas -> actor.InitFailed("Not enough replicas")
-        NotEnoughReplicasAfterAppend -> actor.InitFailed("Not enough replicas after append")
-        InvalidRequiredAcks -> actor.InitFailed("Invalid required acks")
-        InvalidTimestamp -> actor.InitFailed("Invalid timestamp")
-        InvalidPartitions -> actor.InitFailed("Invalid partitions")
-        InvalidReplicationFactor -> actor.InitFailed("Invalid replication factor")
-        InvalidReplicaAssignment -> actor.InitFailed("Invalid replica assignment")
-        InvalidConfig -> actor.InitFailed("Invalid config")
-        UnsupportedSaslMechanism -> actor.InitFailed("Unsupported SASL mechanism")
-        IllegalSaslState -> actor.InitFailed("Illegal SASL state")
-        UnsupportedVersion -> actor.InitFailed("Unsupported version")
-        StaleControllerEpoch -> actor.InitFailed("Stale controller epoch")
-        OffsetMetadataTooLarge -> actor.InitFailed("Offset metadata too large")
-        NotController -> actor.InitFailed("Not controller")
-      }
-    }),
-  )
-  Ok(actor.Started(client, named_client(client_builder.name)))
+  {
+    Ok(pid) -> Ok(actor.Started(pid, named_client(client_builder.name)))
+    Error(error) -> Error(actor.InitExited(process.Abnormal(error)))
+  }
 }
 
-pub fn named_client(name: process.Name(Message)) -> FranzClient {
-  FranzClient(name)
+// Get the named client from a process name.
+pub fn named_client(name: process.Name(Message)) -> Client {
+  Client(name)
 }
 
 /// Stops a client.
 @external(erlang, "franz_ffi", "stop_client")
-pub fn stop_client(client: FranzClient) -> Nil
+pub fn stop_client(client: Client) -> Nil
 
 /// Create a new topic with the given number of partitions and replication factor.
 @external(erlang, "franz_ffi", "create_topic")
@@ -261,7 +205,7 @@ pub fn create_topic(
 /// In essence, this is the offset up to which it was possible to read the messages at the time of fetching
 @external(erlang, "franz_ffi", "fetch")
 pub fn fetch(
-  client client: FranzClient,
+  client client: Client,
   topic topic: String,
   partition partition: Int,
   offset offset: Int,

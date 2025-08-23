@@ -17,7 +17,7 @@ pub type Partitioner {
 
 pub opaque type Builder {
   Builder(
-    client: franz.FranzClient,
+    client: franz.Client,
     topic: String,
     configs: List(producer_config.ProducerConfig),
   )
@@ -41,7 +41,7 @@ pub type CbOffset {
 }
 
 /// Creates a new producer builder with the given Franz client and topic.
-pub fn new(client: franz.FranzClient, topic: String) -> Builder {
+pub fn new(client: franz.Client, topic: String) -> Builder {
   Builder(client, topic, [])
 }
 
@@ -61,7 +61,7 @@ pub fn start(builder: Builder) -> Result(Nil, franz.FranzError) {
 
 @external(erlang, "franz_ffi", "start_producer")
 fn do_start(
-  client: franz.FranzClient,
+  client: franz.Client,
   topic: String,
   consumer_config: List(producer_config.ProducerConfig),
 ) -> Result(Nil, franz.FranzError)
@@ -70,7 +70,7 @@ fn do_start(
 /// A producer for the particular topic has to be already started (by calling producer.start()), unless you have specified AutoStartProducers(True) when starting the client.
 @external(erlang, "franz_ffi", "produce_no_ack")
 pub fn produce_no_ack(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   topic topic: String,
   partition partition: ProducerPartition,
   key key: BitArray,
@@ -82,7 +82,7 @@ pub fn produce_no_ack(
 /// This function will return the offset of the produced message.
 @external(erlang, "franz_ffi", "produce_sync_offset")
 pub fn produce_sync_offset(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   topic topic: String,
   partition partition: ProducerPartition,
   key key: BitArray,
@@ -93,7 +93,7 @@ pub fn produce_sync_offset(
 /// A producer for the particular topic has to be already started (by calling producer.start()), unless you have specified AutoStartProducers(True) when starting the client.
 @external(erlang, "franz_ffi", "produce_sync")
 pub fn produce_sync(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   topic topic: String,
   partition partition: ProducerPartition,
   key key: BitArray,
@@ -106,7 +106,7 @@ pub fn produce_sync(
 /// The callback expects the partition and offset of the produced message.
 @external(erlang, "franz_ffi", "produce_cb")
 pub fn produce_cb(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   topic topic: String,
   partition partition: ProducerPartition,
   key key: BitArray,

@@ -6,7 +6,7 @@ import gleam/erlang/process.{type Pid}
 
 pub opaque type Builder(callback_init_state) {
   Builder(
-    client: franz.FranzClient,
+    client: franz.Client,
     topic: String,
     partitions: partitions.Partitions,
     commited_offsets: List(#(Int, Int)),
@@ -25,7 +25,7 @@ pub fn ack(cb_state: cb_state) -> Ack
 
 @external(erlang, "franz_ffi", "start_topic_subscriber")
 fn start_topic_subscriber(
-  client: franz.FranzClient,
+  client: franz.Client,
   topic: String,
   partitions: partitions.Partitions,
   consumer_config: List(consumer_config.ConsumerConfig),
@@ -37,7 +37,7 @@ fn start_topic_subscriber(
 
 /// Create a new topic subscriber builder.
 pub fn new(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   topic topic: String,
   partitions partitions: partitions.Partitions,
   message_type message_type: message_type.MessageType,

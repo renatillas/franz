@@ -8,7 +8,7 @@ pub type CallbackReturn
 
 pub opaque type GroupBuilder(callback_init_state) {
   GroupBuilder(
-    client: franz.FranzClient,
+    client: franz.Client,
     group_id: String,
     topics: List(String),
     message_type: message_type.MessageType,
@@ -29,7 +29,7 @@ pub fn ack(cb_state: cb_state) -> CallbackReturn
 
 @external(erlang, "franz_ffi", "start_group_subscriber")
 fn start_group_subscriber(
-  client: franz.FranzClient,
+  client: franz.Client,
   group_id: String,
   topics: List(String),
   consumer_config: List(consumer_config.ConsumerConfig),
@@ -41,7 +41,7 @@ fn start_group_subscriber(
 
 /// Create a new group subscriber builder.
 pub fn new(
-  client client: franz.FranzClient,
+  client client: franz.Client,
   group_id group_id: String,
   topics topics: List(String),
   message_type message_type: message_type.MessageType,
