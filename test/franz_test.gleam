@@ -309,7 +309,7 @@ pub fn start_group_subscriber_test() {
       isolation_level.ReadUncommitted,
     ))
     |> group_subscriber.start()
-  process.sleep(100)
+  process.sleep(200)
 
   assert Ok(Nil)
     == producer.produce_sync(
