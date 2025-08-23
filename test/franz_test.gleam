@@ -281,7 +281,7 @@ pub fn start_topic_subscriber_test() {
     )
 }
 
-pub fn start_group_subscriber_test_skip() {
+pub fn start_group_subscriber_test() {
   let subscriber_name = process.new_name("start_group_subscriber:subscriber")
   let client_name = process.new_name("start_group_subscriber:client")
   let topic = "test_topic"

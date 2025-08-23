@@ -10,6 +10,32 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    
+    services:
+      kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        ports:
+          - 9092:9092
+        env:
+          # KRaft mode configuration (no Zookeeper needed)
+          KAFKA_NODE_ID: 1
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+          KAFKA_PROCESS_ROLES: broker,controller
+          # Important settings for consumer groups
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+          # Storage
+          KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -30,21 +56,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gleam-
       
-      - uses: spicyparrot/kafka-kraft-action@v1.1.0
-        with: 
-          kafka-version: "3.7.0"
-          kafka-topics: "test_topic,1"
-      
       - run: gleam deps download
-      - run: |
-          # Wait for Kafka to be fully ready
-          sleep 20
-          # Test Kafka connectivity on both addresses
-          echo "Testing localhost:9092..."
-          nc -zv localhost 9092 || true
-          echo "kafka_runner_address: $kafka_runner_address"
-          echo "Testing $kafka_runner_address:9093..."
-          nc -zv $kafka_runner_address 9093 || true
+      
+      - name: Wait for Kafka and run tests
+        run: |
+          # Wait for Kafka to be ready
+          echo "Waiting for Kafka to be ready..."
+          for i in {1..30}; do
+            if nc -zv localhost 9092 2>/dev/null; then
+              echo "Kafka is ready!"
+              break
+            fi
+            echo "Waiting for Kafka... ($i/30)"
+            sleep 2
+          done
+          
+          # Give Kafka extra time to fully initialize consumer group coordinator
+          sleep 5
+          
+          # Create test topic explicitly
+          docker exec ${{ job.services.kafka.id }} kafka-topics --bootstrap-server localhost:9092 --create --topic test_topic --partitions 1 --replication-factor 1 || echo "Topic might already exist"
+          
+          # List topics to verify
+          echo "Available topics:"
+          docker exec ${{ job.services.kafka.id }} kafka-topics --bootstrap-server localhost:9092 --list
+          
           # Run tests
           gleam test
         env:
