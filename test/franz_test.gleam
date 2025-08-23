@@ -303,13 +303,13 @@ pub fn start_group_subscriber_test() {
         process.send(message_subject, message)
         group_subscriber.commit(cb_state)
       },
-      init_callback_state: 0,
+      init_callback_state: -1,
     )
     |> group_subscriber.with_consumer_config(consumer_config.IsolationLevel(
       isolation_level.ReadUncommitted,
     ))
     |> group_subscriber.start()
-  process.sleep(2000)
+  process.sleep(500)
 
   assert Ok(Nil)
     == producer.produce_sync(
@@ -325,6 +325,6 @@ pub fn start_group_subscriber_test() {
     key: <<"key">>,
     value: <<"value">>,
     ..,
-  )) = process.receive(message_subject, 3000)
+  )) = process.receive(message_subject, 1000)
   Nil
 }
