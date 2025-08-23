@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gleam test:*)",
+      "Bash(grep:*)",
+      "Bash(gleam deps:*)",
+      "Bash(gleam build:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:kafka.apache.org)",
+      "Bash(sed:*)",
+      "Bash(perl:*)",
+      "Bash(erl:*)",
+      "Bash(gleam run:*)",
+      "Bash(nc:*)",
+      "Bash(mv:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": false
+}
