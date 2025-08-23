@@ -309,7 +309,7 @@ pub fn start_group_subscriber_test() {
       isolation_level.ReadUncommitted,
     ))
     |> group_subscriber.start()
-  process.sleep(3000)
+  process.sleep(2000)
 
   assert Ok(Nil)
     == producer.produce_sync(
@@ -325,6 +325,6 @@ pub fn start_group_subscriber_test() {
     key: <<"key">>,
     value: <<"value">>,
     ..,
-  )) = process.receive(message_subject, 5000)
+  )) = process.receive(message_subject, 3000)
   Nil
 }
