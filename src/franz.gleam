@@ -19,6 +19,44 @@ pub type FranzError {
   ConsumerNotFound(String)
   ProducerNotFound(String, Int)
   OffsetOutOfRange
+  CorruptMessage
+  InvalidFetchSize
+  LeaderNotAvailable
+  NotLeaderOrFollower
+  RequestTimedOut
+  BrokerNotAvailable
+  ReplicaNotAvailable
+  MessageTooLarge
+  NetworkException
+  CoordinatorLoadInProgress
+  CoordinatorNotAvailable
+  NotCoordinator
+  IllegalGeneration
+  InconsistentGroupProtocol
+  InvalidGroupId
+  UnknownMemberId
+  InvalidSessionTimeout
+  RebalanceInProgress
+  InvalidCommitOffsetSize
+  TopicAuthorizationFailed
+  GroupAuthorizationFailed
+  ClusterAuthorizationFailed
+  InvalidTopic
+  RecordListTooLarge
+  NotEnoughReplicas
+  NotEnoughReplicasAfterAppend
+  InvalidRequiredAcks
+  InvalidTimestamp
+  InvalidPartitions
+  InvalidReplicationFactor
+  InvalidReplicaAssignment
+  InvalidConfig
+  UnsupportedSaslMechanism
+  IllegalSaslState
+  UnsupportedVersion
+  StaleControllerEpoch
+  OffsetMetadataTooLarge
+  NotController
 }
 
 pub type KafkaMessage {
@@ -155,6 +193,44 @@ pub fn start(client_builder: Builder) -> actor.StartResult(FranzClient) {
             <> int.to_string(partition),
           )
         OffsetOutOfRange -> actor.InitFailed("Offset out of range")
+        CorruptMessage -> actor.InitFailed("Corrupt message")
+        InvalidFetchSize -> actor.InitFailed("Invalid fetch size")
+        LeaderNotAvailable -> actor.InitFailed("Leader not available")
+        NotLeaderOrFollower -> actor.InitFailed("Not leader or follower")
+        RequestTimedOut -> actor.InitFailed("Request timed out")
+        BrokerNotAvailable -> actor.InitFailed("Broker not available")
+        ReplicaNotAvailable -> actor.InitFailed("Replica not available")
+        MessageTooLarge -> actor.InitFailed("Message too large")
+        NetworkException -> actor.InitFailed("Network exception")
+        CoordinatorLoadInProgress -> actor.InitFailed("Coordinator load in progress")
+        CoordinatorNotAvailable -> actor.InitFailed("Coordinator not available")
+        NotCoordinator -> actor.InitFailed("Not coordinator")
+        IllegalGeneration -> actor.InitFailed("Illegal generation")
+        InconsistentGroupProtocol -> actor.InitFailed("Inconsistent group protocol")
+        InvalidGroupId -> actor.InitFailed("Invalid group ID")
+        UnknownMemberId -> actor.InitFailed("Unknown member ID")
+        InvalidSessionTimeout -> actor.InitFailed("Invalid session timeout")
+        RebalanceInProgress -> actor.InitFailed("Rebalance in progress")
+        InvalidCommitOffsetSize -> actor.InitFailed("Invalid commit offset size")
+        TopicAuthorizationFailed -> actor.InitFailed("Topic authorization failed")
+        GroupAuthorizationFailed -> actor.InitFailed("Group authorization failed")
+        ClusterAuthorizationFailed -> actor.InitFailed("Cluster authorization failed")
+        InvalidTopic -> actor.InitFailed("Invalid topic")
+        RecordListTooLarge -> actor.InitFailed("Record list too large")
+        NotEnoughReplicas -> actor.InitFailed("Not enough replicas")
+        NotEnoughReplicasAfterAppend -> actor.InitFailed("Not enough replicas after append")
+        InvalidRequiredAcks -> actor.InitFailed("Invalid required acks")
+        InvalidTimestamp -> actor.InitFailed("Invalid timestamp")
+        InvalidPartitions -> actor.InitFailed("Invalid partitions")
+        InvalidReplicationFactor -> actor.InitFailed("Invalid replication factor")
+        InvalidReplicaAssignment -> actor.InitFailed("Invalid replica assignment")
+        InvalidConfig -> actor.InitFailed("Invalid config")
+        UnsupportedSaslMechanism -> actor.InitFailed("Unsupported SASL mechanism")
+        IllegalSaslState -> actor.InitFailed("Illegal SASL state")
+        UnsupportedVersion -> actor.InitFailed("Unsupported version")
+        StaleControllerEpoch -> actor.InitFailed("Stale controller epoch")
+        OffsetMetadataTooLarge -> actor.InitFailed("Offset metadata too large")
+        NotController -> actor.InitFailed("Not controller")
       }
     }),
   )

@@ -16,9 +16,42 @@ pub fn main() {
   gleeunit.main()
 }
 
-pub fn create_topic() {
+// Import error mapping tests
+@external(erlang, "error_mapping_test", "error_variant_names_test")
+fn error_variant_names_test() -> Nil
+
+@external(erlang, "error_mapping_test", "map_unknown_server_error_test")
+fn map_unknown_server_error_test() -> Nil
+
+@external(erlang, "error_mapping_test", "map_offset_out_of_range_test")
+fn map_offset_out_of_range_test() -> Nil
+
+@external(erlang, "error_mapping_test", "map_corrupt_message_test")
+fn map_corrupt_message_test() -> Nil
+
+pub fn error_mapping_variant_names_test() {
+  error_variant_names_test()
+}
+
+pub fn error_mapping_unknown_server_error_test() {
+  map_unknown_server_error_test()
+}
+
+pub fn error_mapping_offset_out_of_range_test() {
+  map_offset_out_of_range_test()
+}
+
+pub fn error_mapping_corrupt_message_test() {
+  map_corrupt_message_test()
+}
+
+pub fn create_topic_test() {
   let topic = "test_topic"
   let endpoint = franz.Endpoint("127.0.0.1", 9092)
+  
+  // Clean up any existing topic first
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  
   franz.create_topic(
     endpoints: [endpoint],
     name: topic,
@@ -28,6 +61,7 @@ pub fn create_topic() {
     timeout_ms: 1000,
   )
   |> should.be_ok()
+  
   franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 10_000)
   |> should.be_ok()
 }
@@ -77,13 +111,26 @@ pub fn start_client_with_config_test() {
 pub fn produce_sync_test() {
   let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  
+  // Ensure topic exists
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  let _ = franz.create_topic(
+    endpoints: [endpoint],
+    name: topic,
+    partitions: 1,
+    replication_factor: 1,
+    configs: [],
+    timeout_ms: 5000,
+  )
+  
   let assert Ok(_) =
     franz.new([endpoint], name)
     |> franz.start()
 
   let client = franz.named_client(name)
 
-  producer.new(client, "test_topic")
+  producer.new(client, topic)
   |> producer.start()
   |> should.be_ok()
 
@@ -100,13 +147,26 @@ pub fn produce_sync_test() {
 pub fn produce_sync_offset_test() {
   let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  
+  // Ensure topic exists
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  let _ = franz.create_topic(
+    endpoints: [endpoint],
+    name: topic,
+    partitions: 1,
+    replication_factor: 1,
+    configs: [],
+    timeout_ms: 5000,
+  )
+  
   let assert Ok(_) =
     franz.new([endpoint], name)
     |> franz.start()
 
   let client = franz.named_client(name)
 
-  producer.new(client, "test_topic")
+  producer.new(client, topic)
   |> producer.start()
   |> should.be_ok()
 
@@ -123,13 +183,26 @@ pub fn produce_sync_offset_test() {
 pub fn produce_cb_test() {
   let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  
+  // Ensure topic exists
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  let _ = franz.create_topic(
+    endpoints: [endpoint],
+    name: topic,
+    partitions: 1,
+    replication_factor: 1,
+    configs: [],
+    timeout_ms: 5000,
+  )
+  
   let assert Ok(_) =
     franz.new([endpoint], name)
     |> franz.start()
 
   let client = franz.named_client(name)
 
-  producer.new(client, "test_topic")
+  producer.new(client, topic)
   |> producer.start()
   |> should.be_ok()
 
@@ -151,13 +224,26 @@ pub fn produce_cb_test() {
 pub fn produce_no_ack_test() {
   let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  
+  // Ensure topic exists
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  let _ = franz.create_topic(
+    endpoints: [endpoint],
+    name: topic,
+    partitions: 1,
+    replication_factor: 1,
+    configs: [],
+    timeout_ms: 5000,
+  )
+  
   let assert Ok(_) =
     franz.new([endpoint], name)
     |> franz.start()
 
   let client = franz.named_client(name)
 
-  producer.new(client, "test_topic")
+  producer.new(client, topic)
   |> producer.start()
   |> should.be_ok()
 
@@ -174,12 +260,25 @@ pub fn produce_no_ack_test() {
 pub fn start_producer_with_config_test() {
   let name = process.new_name("franz_test_producer")
   let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  
+  // Ensure topic exists
+  let _ = franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+  let _ = franz.create_topic(
+    endpoints: [endpoint],
+    name: topic,
+    partitions: 1,
+    replication_factor: 1,
+    configs: [],
+    timeout_ms: 5000,
+  )
+  
   let assert Ok(_) =
     franz.new([endpoint], name)
     |> franz.start()
 
   let client = franz.named_client(name)
-  producer.new(client, "test_topic")
+  producer.new(client, topic)
   |> producer.with_config(producer_config.RequiredAcks(1))
   |> producer.with_config(producer_config.RequiredAcks(1))
   |> producer.with_config(producer_config.AckTimeout(1000))

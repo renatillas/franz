@@ -2,13 +2,13 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "brod", version = "4.4.5", build_tools = ["rebar3"], requirements = ["kafka_protocol"], otp_app = "brod", source = "hex", outer_checksum = "169E1831DC9AA61C6654D73A44F4017C972F02D3847EF66A5816C4D4593D0D64" },
-  { name = "crc32cer", version = "1.0.3", build_tools = ["rebar3"], requirements = [], otp_app = "crc32cer", source = "hex", outer_checksum = "08FDCD5CE51ACD839A12E98742F0F0EDA19A2A679FC9FBFAF6AAB958310FB70E" },
+  { name = "brod", version = "4.4.6", build_tools = ["rebar3", "cmake"], requirements = ["kafka_protocol"], otp_app = "brod", source = "hex", outer_checksum = "A47757F985C52681D5AB25D41A52CAFE7C188208F6D2BE2864F0A11EC8A19568" },
+  { name = "crc32cer", version = "1.0.4", build_tools = ["rebar3"], requirements = [], otp_app = "crc32cer", source = "hex", outer_checksum = "147307889AAE52490D7674A639CA59818A02C692E217763CA330F451DF8CA9DE" },
   { name = "gleam_erlang", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "1124AD3AA21143E5AF0FC5CF3D9529F6DB8CA03E43A55711B60B6B7B3874375C" },
   { name = "gleam_otp", version = "1.1.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "gleam_otp", source = "hex", outer_checksum = "7987CBEBC8060B88F14575DEF546253F3116EBE2A5DA6FD82F38243FCE97C54B" },
   { name = "gleam_stdlib", version = "0.62.1", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "0080706D3A5A9A36C40C68481D1D231D243AF602E6D2A2BE67BA8F8F4DFF45EC" },
   { name = "gleeunit", version = "1.6.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "FDC68A8C492B1E9B429249062CD9BAC9B5538C6FBF584817205D0998C42E1DAC" },
-  { name = "kafka_protocol", version = "4.2.7", build_tools = ["rebar3"], requirements = ["crc32cer"], otp_app = "kafka_protocol", source = "hex", outer_checksum = "1D5E9597AD3C0776C86DC5E08D3BAAEA7DB805A52E5FD35E3F071AAD7789FC4C" },
+  { name = "kafka_protocol", version = "4.2.8", build_tools = ["rebar3"], requirements = ["crc32cer"], otp_app = "kafka_protocol", source = "hex", outer_checksum = "8004E8918F6ABFE75F6A2E98B607B7AE88620BA6C3FCE3515BD36CA99150770D" },
 ]
 
 [requirements]
