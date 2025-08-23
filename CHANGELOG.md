@@ -5,9 +5,36 @@ All notable changes to Franz will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - Unreleased
+
+### Changed
+
+- **BREAKING: Module Reorganization** - Consumer and producer configurations moved to dedicated submodules
+  - `franz/consumer_config` → `franz/consumer/config`
+  - `franz/producer_config` → `franz/producer/config`
+  - `franz/group_config` merged into `franz/consumer/group_subscriber`
+  - `franz/message_type` → `franz/consumer/message_type`
+- **Improved Consumer APIs** - Enhanced topic and group subscriber builders
+  - Added `actor.StartResult` return types for better OTP integration
+  - Added `named_client` functions for referencing existing subscribers
+  - Improved builder patterns with better type safety
+- **Enhanced Documentation** - Added comprehensive doc comments throughout the codebase
+  - All public types and functions now have detailed documentation
+  - Better explanation of configuration options and their defaults
+- **Error Handling Improvements** - More specific error information in consumer APIs
+  - `ConsumerNotFound` now includes topic and partition information
+  - Better error propagation through actor start results
+
+### Added
+
+- **Test Coverage** - New comprehensive integration tests for Kafka error scenarios
+  - Added `kafka_error_integration_test.gleam` with extensive error case testing
+  - Improved test organization and coverage
+
 ## [2.0.0] - 2025-08-23
 
 ### Added
+
 - **OTP Supervision Support** - Franz clients can now be supervised using OTP supervisors
   - New `supervised/1` function to create supervisor-compatible workers
   - Integration with `gleam/otp/actor` and `gleam/otp/supervision`
@@ -30,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `stop_client/1` function for graceful shutdown
 
 ### Changed
+
 - **Breaking: Type Renames**
   - `ClientBuilder` renamed to `Builder`
   - `FranzClient` renamed to `Client` and now wraps a process name
@@ -42,21 +70,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added comprehensive feature list
 
 ### Fixed
+
 - Various stability improvements in error handling
 - Better FFI integration with underlying Erlang/brod client
 
 ## [1.1.0] - 2025-02-14
 
 ### Added
+
 - GitHub Actions CI integration for automated testing
 - Kafka service in CI pipeline for integration tests
 - Support for Gleam 1.11 and updated dependencies
 
 ### Changed
+
 - Updated project template to use Gleam 1.11
 - Modernized dependency versions for better compatibility
 
 ### Fixed
+
 - Topic name handling in tests
 - CI configuration improvements
 - Removed unused functions
@@ -64,11 +96,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2025-02-13
 
 ### Fixed
+
 - Minor bug fixes and stability improvements
 
 ## [1.0.0] - 2025-02-13
 
 ### Added
+
 - **Production-Ready Release** - First stable release of Franz
 - **Complete Producer API**
   - Synchronous and asynchronous message production
@@ -92,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Well-defined message types
 
 ### Changed
+
 - Major API stabilization from v0.x series
 - Improved error handling and reporting
 - Better FFI integration with brod client
@@ -100,31 +135,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.1] - 2025-01-15
 
 ### Fixed
+
 - Message fetching issues
 - Version configuration
 
 ## [0.5.0] - 2025-01-15
 
 ### Added
+
 - Comprehensive documentation improvements
 - Additional code examples
 
 ### Changed
+
 - API refinements for better usability
 
 ## [0.4.0] - 2025-01-10
 
 ### Added
+
 - Extended producer configuration options
 - Better partition management
 
 ### Changed
+
 - Documentation improvements
 - Internal code organization
 
 ## [0.3.0] - 2025-01-08
 
 ### Changed
+
 - Major code reorganization for better maintainability
 - Improved module structure
 - Documentation enhancements
@@ -132,15 +173,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2025-01-05
 
 ### Added
+
 - Basic consumer functionality
 - Initial producer implementation
 
 ### Changed
+
 - Various improvements to core functionality
 
 ## [0.1.0] - 2025-01-01
 
 ### Added
+
 - Initial release of Franz
 - Basic Kafka client functionality
 - Connection management
@@ -156,3 +200,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.3.0]: https://github.com/renatillas/franz/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/renatillas/franz/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/renatillas/franz/releases/tag/v0.1.0
+
