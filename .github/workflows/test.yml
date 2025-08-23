@@ -12,16 +12,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.1.2"
           gleam-version: "1.11.0"
           rebar3-version: "3"
           # elixir-version: "1"
+          cache-build: true  # Enable built-in caching
+      
+      - uses: actions/cache@v3
+        with:
+          path: |
+            build
+            ~/.cache/gleam
+          key: ${{ runner.os }}-gleam-${{ hashFiles('**/gleam.toml', '**/manifest.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gleam-
+      
       - uses: spicyparrot/kafka-kraft-action@v1.1.0
         with: 
           kafka-version: "3.7.0"
           kafka-topics: "test_topic,1"
+      
       - run: gleam deps download
       - run: |
           # Wait for Kafka to be fully ready
