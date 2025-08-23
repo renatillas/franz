@@ -24,9 +24,12 @@ jobs:
           kafka-topics: "test_topic,1"
       - run: gleam deps download
       - run: |
-          # Wait for Kafka to be ready
-          sleep 10
+          # Wait for Kafka to be fully ready
+          sleep 15
+          # Test Kafka connectivity
+          nc -zv localhost 9092 || true
           gleam test
         env:
+          CI: true
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
       - run: gleam format --check src test

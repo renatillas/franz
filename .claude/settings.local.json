@@ -14,7 +14,8 @@
       "Bash(gleam run:*)",
       "Bash(nc:*)",
       "Bash(mv:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(gleam add:*)"
     ]
   },
   "enableAllProjectMcpServers": false
