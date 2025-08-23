@@ -7,6 +7,7 @@ import franz/isolation_level
 import franz/producer
 import franz/producer/config as producer_config
 import gleam/erlang/process
+import gleam/int
 import gleeunit
 
 pub fn main() {
@@ -307,13 +308,18 @@ pub fn start_group_subscriber_test() {
         process.send(message_subject, message)
         group_subscriber.commit(cb_state)
       },
-      init_callback_state: -1,
+      init_callback_state: 0,
     )
     |> group_subscriber.with_consumer_config(consumer_config.IsolationLevel(
       isolation_level.ReadUncommitted,
     ))
+    |> group_subscriber.with_consumer_config(consumer_config.BeginOffset(
+      consumer_config.Earliest,
+    ))
     |> group_subscriber.start()
-  process.sleep(500)
+  
+  // Give time for consumer group to coordinate
+  process.sleep(1500)
 
   assert Ok(Nil)
     == producer.produce_sync(
@@ -324,11 +330,12 @@ pub fn start_group_subscriber_test() {
       value: producer.Value(<<"value">>, []),
     )
 
+  // Wait for message with reasonable timeout
   let assert Ok(franz.KafkaMessage(
     offset: 0,
     key: <<"key">>,
     value: <<"value">>,
     ..,
-  )) = process.receive(message_subject, 1000)
+  )) = process.receive(message_subject, 2000)
   process.sleep(500)
 }
