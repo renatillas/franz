@@ -3,177 +3,334 @@
 -export([produce_no_ack/5, delete_topics/3, list_groups/1, stop_group_subscriber/1,
          fetch/5, produce_cb/6, stop_client/1, produce_sync/5, start_client/3,
          produce_sync_offset/5, create_topic/6, start_topic_subscriber/8, ack/1, commit/1,
-         start_group_subscriber/8, start_producer/3, map_error/1]).
+         start_group_subscriber/8, start_producer/3]).
 
-nil_result(Result) ->
-  case Result of
-    ok ->
-      {ok, nil};
-    {error, Reason} ->
-      {error, map_error(Reason)}
-  end.
-
-map_error(Reason) ->
+%% Error mapping for topic administration operations
+map_topic_error(Reason) ->
   case Reason of
-    % Kafka error atoms
-    unknown_server_error ->
-      unknown_error;
-    offset_out_of_range ->
-      offset_out_of_range;
-    corrupt_message ->
-      corrupt_message;
-    unknown_topic_or_partition ->
-      unknown_topic_or_partition;
-    invalid_fetch_size ->
-      invalid_fetch_size;
-    leader_not_available ->
-      leader_not_available;
-    not_leader_or_follower ->
-      not_leader_or_follower;
-    request_timed_out ->
-      request_timed_out;
-    broker_not_available ->
-      broker_not_available;
-    replica_not_available ->
-      replica_not_available;
-    message_too_large ->
-      message_too_large;
-    stale_controller_epoch ->
-      stale_controller_epoch;
-    offset_metadata_too_large ->
-      offset_metadata_too_large;
-    network_exception ->
-      network_exception;
-    coordinator_load_in_progress ->
-      coordinator_load_in_progress;
-    coordinator_not_available ->
-      coordinator_not_available;
-    not_coordinator ->
-      not_coordinator;
-    invalid_topic_exception ->
-      invalid_topic;
-    record_list_too_large ->
-      record_list_too_large;
-    not_enough_replicas ->
-      not_enough_replicas;
-    not_enough_replicas_after_append ->
-      not_enough_replicas_after_append;
-    invalid_required_acks ->
-      invalid_required_acks;
-    illegal_generation ->
-      illegal_generation;
-    inconsistent_group_protocol ->
-      inconsistent_group_protocol;
-    invalid_group_id ->
-      invalid_group_id;
-    unknown_member_id ->
-      unknown_member_id;
-    invalid_session_timeout ->
-      invalid_session_timeout;
-    rebalance_in_progress ->
-      rebalance_in_progress;
-    invalid_commit_offset_size ->
-      invalid_commit_offset_size;
-    topic_authorization_failed ->
-      topic_authorization_failed;
-    group_authorization_failed ->
-      group_authorization_failed;
-    cluster_authorization_failed ->
-      cluster_authorization_failed;
-    invalid_timestamp ->
-      invalid_timestamp;
-    unsupported_sasl_mechanism ->
-      unsupported_sasl_mechanism;
-    illegal_sasl_state ->
-      illegal_sasl_state;
-    unsupported_version ->
-      unsupported_version;
     topic_already_exists ->
       topic_already_exists;
+    unknown_topic_or_partition ->
+      topic_not_found;
+    invalid_topic_exception ->
+      topic_invalid_name;
     invalid_partitions ->
-      invalid_partitions;
+      topic_invalid_partitions;
     invalid_replication_factor ->
-      invalid_replication_factor;
+      topic_invalid_replication_factor;
     invalid_replica_assignment ->
-      invalid_replica_assignment;
+      topic_invalid_replica_assignment;
     invalid_config ->
-      invalid_config;
-    not_controller ->
-      not_controller;
-    % Brod-specific errors
-    client_down ->
-      client_down;
-    {client_down, _} ->
-      client_down;
-    producer_down ->
-      producer_down;
-    {producer_down, _} ->
-      producer_down;
-    {producer_not_found, Topic} ->
-      {producer_not_found, Topic, 0};
-    {producer_not_found, Topic, Partition} ->
-      {producer_not_found, Topic, Partition};
-    {consumer_not_found, Topic} ->
-      {consumer_not_found, Topic, 0};
-    {consumer_not_found, Topic, Partition} ->
-      {consumer_not_found, Topic, Partition};
-    % Handle binary string errors from Kafka
+      topic_invalid_config;
+    topic_authorization_failed ->
+      topic_authorization_failed;
+    cluster_authorization_failed ->
+      topic_authorization_failed;
+    request_timed_out ->
+      topic_request_timed_out;
+    broker_not_available ->
+      topic_broker_not_available;
     Error when is_binary(Error) ->
       ErrorStr = binary_to_list(Error),
-      % Check for specific error messages
       case string:find(ErrorStr, "already exists") of
         nomatch ->
           case string:find(ErrorStr, "Number of partitions") of
             nomatch ->
               case string:find(ErrorStr, "replication factor") of
                 nomatch ->
-                  unknown_error;
+                  topic_unknown_error;
                 _ ->
-                  invalid_replication_factor
+                  topic_invalid_replication_factor
               end;
             _ ->
-              invalid_partitions
+              topic_invalid_partitions
           end;
         _ ->
           topic_already_exists
       end;
     _ ->
-      unknown_error
+      topic_unknown_error
   end.
+
+%% Error mapping for produce operations
+map_produce_error(Reason) ->
+  case Reason of
+    {producer_not_found, Topic, Partition} ->
+      {producer_not_found, Topic, Partition};
+    {producer_not_found, Topic} ->
+      {producer_not_found, Topic, 0};
+    producer_down ->
+      producer_down;
+    {producer_down, _} ->
+      producer_down;
+    client_down ->
+      producer_client_down;
+    {client_down, _} ->
+      producer_client_down;
+    leader_not_available ->
+      producer_leader_not_available;
+    not_leader_or_follower ->
+      producer_not_leader_or_follower;
+    message_too_large ->
+      producer_message_too_large;
+    record_list_too_large ->
+      producer_record_list_too_large;
+    not_enough_replicas ->
+      producer_not_enough_replicas;
+    not_enough_replicas_after_append ->
+      producer_not_enough_replicas_after_append;
+    invalid_required_acks ->
+      producer_invalid_required_acks;
+    topic_authorization_failed ->
+      producer_authorization_failed;
+    cluster_authorization_failed ->
+      producer_authorization_failed;
+    request_timed_out ->
+      producer_request_timed_out;
+    broker_not_available ->
+      producer_broker_not_available;
+    _ ->
+      producer_unknown_error
+  end.
+
+%% Error mapping for fetch/consume operations
+map_fetch_error(Reason) ->
+  case Reason of
+    offset_out_of_range ->
+      fetch_offset_out_of_range;
+    invalid_fetch_size ->
+      fetch_invalid_size;
+    corrupt_message ->
+      fetch_corrupt_message;
+    invalid_timestamp ->
+      fetch_invalid_timestamp;
+    leader_not_available ->
+      fetch_leader_not_available;
+    not_leader_or_follower ->
+      fetch_not_leader_or_follower;
+    unknown_topic_or_partition ->
+      fetch_topic_not_found;
+    {consumer_not_found, Topic, Partition} ->
+      {fetch_consumer_not_found, Topic, Partition};
+    {consumer_not_found, Topic} ->
+      {fetch_consumer_not_found, Topic, 0};
+    client_down ->
+      fetch_client_down;
+    {client_down, _} ->
+      fetch_client_down;
+    topic_authorization_failed ->
+      fetch_authorization_failed;
+    cluster_authorization_failed ->
+      fetch_authorization_failed;
+    request_timed_out ->
+      fetch_request_timed_out;
+    broker_not_available ->
+      fetch_broker_not_available;
+    _ ->
+      fetch_unknown_error
+  end.
+
+%% Error mapping for group operations
+map_group_error(Reason) ->
+  case Reason of
+    coordinator_load_in_progress ->
+      group_coordinator_loading;
+    coordinator_not_available ->
+      group_coordinator_not_available;
+    not_coordinator ->
+      group_not_coordinator;
+    illegal_generation ->
+      group_illegal_generation;
+    inconsistent_group_protocol ->
+      group_inconsistent_protocol;
+    invalid_group_id ->
+      group_invalid_id;
+    unknown_member_id ->
+      group_unknown_member;
+    invalid_session_timeout ->
+      group_invalid_session_timeout;
+    rebalance_in_progress ->
+      group_rebalance_in_progress;
+    invalid_commit_offset_size ->
+      group_invalid_commit_offset_size;
+    group_authorization_failed ->
+      group_authorization_failed;
+    cluster_authorization_failed ->
+      group_authorization_failed;
+    client_down ->
+      group_client_down;
+    {client_down, _} ->
+      group_client_down;
+    request_timed_out ->
+      group_request_timed_out;
+    broker_not_available ->
+      group_broker_not_available;
+    _ ->
+      group_unknown_error
+  end.
+
+%% Helper for produce operations returning nil
+produce_nil_result(Result) ->
+  case Result of
+    ok ->
+      {ok, nil};
+    {error, Reason} ->
+      {error, map_produce_error(Reason)}
+  end.
+
+%% Helper for topic operations returning nil
+topic_nil_result(Result) ->
+  case Result of
+    ok ->
+      {ok, nil};
+    {error, Reason} ->
+      {error, map_topic_error(Reason)}
+  end.
+
+%% Process client config options
+process_client_config(Options) ->
+  lists:flatmap(fun process_client_option/1, Options).
+
+process_client_option({sasl, SaslConfig}) ->
+  [{sasl, process_sasl_config(SaslConfig)}];
+process_client_option({ssl, SslConfig}) ->
+  [{ssl, process_ssl_config(SslConfig)}];
+process_client_option({connect_timeout, Timeout}) ->
+  [{connect_timeout, Timeout}];
+process_client_option({request_timeout, Timeout}) ->
+  [{request_timeout, Timeout}];
+process_client_option({restart_delay_seconds, Seconds}) ->
+  [{restart_delay_seconds, Seconds}];
+process_client_option({reconnect_cool_down_seconds, Seconds}) ->
+  [{reconnect_cool_down_seconds, Seconds}];
+process_client_option({allow_topic_auto_creation, Bool}) ->
+  [{allow_topic_auto_creation, Bool}];
+process_client_option({auto_start_producers, Bool}) ->
+  [{auto_start_producers, Bool}];
+process_client_option({default_producer_config, Config}) ->
+  [{default_producer_config, process_producer_config(Config)}];
+process_client_option({unknown_topic_cache_ttl, Ttl}) ->
+  [{topic_metadata_refresh_interval_seconds, Ttl div 1000}];
+process_client_option(Other) ->
+  [Other].
+
+%% SASL configuration
+process_sasl_config({sasl_credentials, Mechanism, Username, Password}) ->
+  {process_sasl_mechanism(Mechanism), Username, Password}.
+
+process_sasl_mechanism(plain) ->
+  plain;
+process_sasl_mechanism(scram_sha_256) ->
+  scram_sha_256;
+process_sasl_mechanism(scram_sha_512) ->
+  scram_sha_512.
+
+%% SSL configuration
+process_ssl_config(ssl_enabled) ->
+  true;
+process_ssl_config({ssl_with_options, CaCertFile, CertFile, KeyFile, Verify}) ->
+  Options0 = [],
+  Options1 = maybe_add_option(cacertfile, CaCertFile, Options0),
+  Options2 = maybe_add_option(certfile, CertFile, Options1),
+  Options3 = maybe_add_option(keyfile, KeyFile, Options2),
+  Options4 = add_verify_option(Verify, Options3),
+  Options4.
+
+maybe_add_option(_Key, none, Options) ->
+  Options;
+maybe_add_option(Key, {some, Value}, Options) ->
+  [{Key, Value} | Options].
+
+add_verify_option(verify_peer, Options) ->
+  [{verify, verify_peer} | Options];
+add_verify_option(verify_none, Options) ->
+  [{verify, verify_none} | Options].
+
+%% Producer configuration
+process_producer_config(Options) ->
+  lists:map(fun process_producer_option/1, Options).
+
+process_producer_option({compression, Compression}) ->
+  {compression, process_compression(Compression)};
+process_producer_option({partition_on_wire_limit, Limit}) ->
+  {partition_onwire_limit, Limit};
+process_producer_option(Other) ->
+  Other.
+
+process_compression(no_compression) ->
+  no_compression;
+process_compression(gzip) ->
+  gzip;
+process_compression(snappy) ->
+  snappy;
+process_compression(lz4) ->
+  lz4.
 
 start_client(Endpoints, ClientConfig, ClientName) ->
   TupleEndpoints =
     lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
-  case brod:start_link_client(TupleEndpoints, ClientName, ClientConfig) of
+  ProcessedConfig = process_client_config(ClientConfig),
+  case brod:start_link_client(TupleEndpoints, ClientName, ProcessedConfig) of
     {ok, Pid} ->
       {ok, Pid};
     {error, Reason} ->
-      {error, map_error(Reason)}
+      {error, map_client_error(Reason)}
+  end.
+
+%% Error mapping for client operations
+map_client_error(Reason) ->
+  case Reason of
+    broker_not_available ->
+      client_broker_not_available;
+    network_exception ->
+      client_network_exception;
+    request_timed_out ->
+      client_request_timed_out;
+    {sasl_auth_failed, R} when is_binary(R) ->
+      {client_authentication_failed, R};
+    {sasl_auth_failed, R} when is_list(R) ->
+      {client_authentication_failed, list_to_binary(R)};
+    {ssl_error, R} when is_binary(R) ->
+      {client_ssl_handshake_failed, R};
+    {ssl_error, R} when is_list(R) ->
+      {client_ssl_handshake_failed, list_to_binary(R)};
+    unsupported_sasl_mechanism ->
+      client_unsupported_sasl_mechanism;
+    illegal_sasl_state ->
+      client_illegal_sasl_state;
+    _ ->
+      client_unknown_error
   end.
 
 produce_sync_offset(Client, Topic, Partition, Key, Value) ->
   {client, ClientName} = Client,
-  brod:produce_sync_offset(ClientName,
-                           Topic,
-                           consumer_partition(Partition),
-                           Key,
-                           value(Value)).
+  case brod:produce_sync_offset(ClientName,
+                                Topic,
+                                consumer_partition(Partition),
+                                Key,
+                                value(Value))
+  of
+    {ok, Offset} ->
+      {ok, Offset};
+    {error, Reason} ->
+      {error, map_produce_error(Reason)}
+  end.
 
 produce_sync(Client, Topic, Partition, Key, Value) ->
   {client, ClientName} = Client,
-  nil_result(brod:produce_sync(ClientName,
-                               Topic,
-                               consumer_partition(Partition),
-                               Key,
-                               value(Value))).
+  produce_nil_result(brod:produce_sync(ClientName,
+                                       Topic,
+                                       consumer_partition(Partition),
+                                       Key,
+                                       value(Value))).
 
 produce_no_ack(Client, Topic, Partition, Key, Value) ->
   {client, ClientName} = Client,
-  nil_result(brod:produce_no_ack(ClientName,
-                                 Topic,
-                                 consumer_partition(Partition),
-                                 Key,
-                                 value(Value))).
+  produce_nil_result(brod:produce_no_ack(ClientName,
+                                         Topic,
+                                         consumer_partition(Partition),
+                                         Key,
+                                         value(Value))).
 
 produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
   {client, ClientName} = Client,
@@ -182,14 +339,14 @@ produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
                        consumer_partition(Partition),
                        Key,
                        value(Value),
-                       fun(P, O) -> AckCb({cb_partition, P}, {cb_offset, O}) end)
+                       fun(P, O) -> AckCb({partition, P}, {offset, O}) end)
   of
     ok ->
       {ok, Partition};
     {ok, P} ->
       {ok, P};
     {error, Reason} ->
-      {error, map_error(Reason)}
+      {error, map_produce_error(Reason)}
   end.
 
 create_topic(Hosts, Name, Partitions, ReplicationFactor, Configs, Timeout) ->
@@ -208,39 +365,74 @@ create_topic(Hosts, Name, Partitions, ReplicationFactor, Configs, Timeout) ->
     ok ->
       {ok, nil};
     {ok, Results} ->
-      % brod:create_topics returns {ok, Results} where Results may contain errors
       handle_create_topics_results(Results, Name);
     {error, Reason} ->
-      {error, map_error(Reason)}
+      {error, map_topic_error(Reason)}
   end.
 
 handle_create_topics_results(Results, TopicName) ->
-  % Check if there's an error in the results
   case Results of
     #{TopicName := #{error_code := ErrorCode, error_message := ErrorMsg}}
       when ErrorCode =/= no_error ->
-      % Map the error code to our error type
-      {error, map_kafka_error_code(ErrorCode, ErrorMsg)};
+      {error, map_topic_error_code(ErrorCode, ErrorMsg)};
     _ ->
-      % Success or no specific error for our topic
       {ok, nil}
   end.
 
-map_kafka_error_code(ErrorCode, ErrorMsg) ->
-  % Map Kafka error codes to our error types
+map_topic_error_code(ErrorCode, ErrorMsg) ->
   case ErrorCode of
     topic_already_exists ->
       topic_already_exists;
+    'TOPIC_ALREADY_EXISTS' ->
+      topic_already_exists;
+    topic_exists ->
+      topic_already_exists;
     invalid_partitions ->
-      invalid_partitions;
+      topic_invalid_partitions;
+    'INVALID_PARTITIONS' ->
+      topic_invalid_partitions;
     invalid_replication_factor ->
-      invalid_replication_factor;
-    _ when is_binary(ErrorMsg) ->
-      % Try to map based on error message
-      map_error(ErrorMsg);
+      topic_invalid_replication_factor;
+    'INVALID_REPLICATION_FACTOR' ->
+      topic_invalid_replication_factor;
+    unknown_topic_or_partition ->
+      topic_not_found;
+    'UNKNOWN_TOPIC_OR_PARTITION' ->
+      topic_not_found;
     _ ->
-      unknown_error
+      %% Try to match based on error message if error code wasn't recognized
+      MappedFromMsg = map_topic_error(ErrorMsg),
+      case MappedFromMsg of
+        topic_unknown_error ->
+          %% Also try matching error code as string in case it's an unexpected atom
+          map_topic_error_from_atom(ErrorCode);
+        Other ->
+          Other
+      end
   end.
+
+%% Try to map from the atom name itself
+map_topic_error_from_atom(ErrorCode) when is_atom(ErrorCode) ->
+  AtomStr = atom_to_list(ErrorCode),
+  LowerStr = string:lowercase(AtomStr),
+  case string:find(LowerStr, "already") of
+    nomatch ->
+      case string:find(LowerStr, "partition") of
+        nomatch ->
+          case string:find(LowerStr, "replication") of
+            nomatch ->
+              topic_unknown_error;
+            _ ->
+              topic_invalid_replication_factor
+          end;
+        _ ->
+          topic_invalid_partitions
+      end;
+    _ ->
+      topic_already_exists
+  end;
+map_topic_error_from_atom(_) ->
+  topic_unknown_error.
 
 start_topic_subscriber(Client,
                        Topic,
@@ -251,7 +443,7 @@ start_topic_subscriber(Client,
                        CbFun,
                        CbInit) ->
   P = case Partitions of
-        all ->
+        all_partitions ->
           all;
         {partitions, PartitionList} ->
           PartitionList
@@ -260,9 +452,9 @@ start_topic_subscriber(Client,
   brod_topic_subscriber:start_link(ClientName,
                                    Topic,
                                    P,
-                                   ConsumerConfig,
+                                   consumer_config(ConsumerConfig),
                                    CommittedOffsets,
-                                   MessageType,
+                                   message_type(MessageType),
                                    CbFun,
                                    CbInit).
 
@@ -272,14 +464,45 @@ ack(Any) ->
 commit(Any) ->
   {ok, commit, Any}.
 
+%% Convert MessageType to brod format
+message_type(single_message) ->
+  message;
+message_type(message_batch) ->
+  message_set.
+
+%% Convert consumer config options to brod format
 consumer_config(Options) ->
-  lists:map(fun(Option) ->
-               case Option of
-                 {begin_offset, {message_timestamp, Int}} -> {begin_offset, Int};
-                 Rest -> Rest
-               end
-            end,
-            Options).
+  lists:map(fun process_consumer_option/1, Options).
+
+process_consumer_option({begin_offset, Offset}) ->
+  {begin_offset, process_offset(Offset)};
+process_consumer_option({consumer_isolation_level, Level}) ->
+  {isolation_level, process_isolation_level(Level)};
+process_consumer_option({offset_reset_policy, Policy}) ->
+  {offset_reset_policy, process_offset_reset_policy(Policy)};
+process_consumer_option(Other) ->
+  Other.
+
+process_offset(latest) ->
+  latest;
+process_offset(earliest) ->
+  earliest;
+process_offset({at_timestamp, Timestamp}) ->
+  Timestamp;
+process_offset({at_offset, Offset}) ->
+  Offset.
+
+process_isolation_level(read_committed) ->
+  read_committed;
+process_isolation_level(read_uncommitted) ->
+  read_uncommitted.
+
+process_offset_reset_policy(reset_by_subscriber) ->
+  reset_by_subscriber;
+process_offset_reset_policy(reset_to_earliest) ->
+  reset_to_earliest;
+process_offset_reset_policy(reset_to_latest) ->
+  reset_to_latest.
 
 stop_client(Client) ->
   {client, ClientName} = Client,
@@ -288,7 +511,25 @@ stop_client(Client) ->
 
 fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
   {client, ClientName} = Client,
-  brod:fetch(ClientName, Topic, Partition, Offset, proplists:to_map(OffsetOptions)).
+  ProcessedOptions = process_fetch_options(OffsetOptions),
+  case brod:fetch(ClientName, Topic, Partition, Offset, ProcessedOptions) of
+    {ok, Result} ->
+      {ok, Result};
+    {error, Reason} ->
+      {error, map_fetch_error(Reason)}
+  end.
+
+process_fetch_options(Options) ->
+  lists:foldl(fun process_fetch_option/2, #{}, Options).
+
+process_fetch_option({fetch_max_wait_time, Time}, Acc) ->
+  Acc#{max_wait_time => Time};
+process_fetch_option({fetch_min_bytes, Bytes}, Acc) ->
+  Acc#{min_bytes => Bytes};
+process_fetch_option({fetch_max_bytes, Bytes}, Acc) ->
+  Acc#{max_bytes => Bytes};
+process_fetch_option({fetch_isolation_level, Level}, Acc) ->
+  Acc#{isolation_level => process_isolation_level(Level)}.
 
 value(Value) ->
   case Value of
@@ -302,7 +543,7 @@ value(Value) ->
 
 consumer_partition(Partition) ->
   case Partition of
-    {partition, Int} ->
+    {single_partition, Int} ->
       Int;
     {partitioner, random} ->
       random;
@@ -330,30 +571,55 @@ start_group_subscriber(Client,
       topics => Topics,
       cb_module => franz_group_subscriber_cb_fun,
       init_data => InitData,
-      message_type => MessageType,
+      message_type => message_type(MessageType),
       consumer_config => consumer_config(ConsumerConfig),
-      group_config => GroupConfig},
+      group_config => process_group_config(GroupConfig)},
   brod_group_subscriber_v2:start_link(Args).
+
+%% Convert group config options to brod format
+process_group_config(Options) ->
+  lists:map(fun process_group_option/1, Options).
+
+process_group_option({session_timeout_seconds, Seconds}) ->
+  {session_timeout_seconds, Seconds};
+process_group_option({rebalance_timeout_seconds, Seconds}) ->
+  {rebalance_timeout_seconds, Seconds};
+process_group_option({heartbeat_rate_seconds, Seconds}) ->
+  {heartbeat_rate_seconds, Seconds};
+process_group_option({max_rejoin_attempts, Attempts}) ->
+  {max_rejoin_attempts, Attempts};
+process_group_option({rejoin_delay_seconds, Seconds}) ->
+  {rejoin_delay_seconds, Seconds};
+process_group_option({offset_commit_interval_seconds, Seconds}) ->
+  {offset_commit_interval_seconds, Seconds};
+process_group_option({offset_retention_seconds, Seconds}) ->
+  {offset_retention_seconds, Seconds};
+process_group_option(Other) ->
+  Other.
 
 start_producer(Client, Topic, ProducerConfig) ->
   {client, ClientName} = Client,
-  nil_result(brod:start_producer(ClientName, Topic, ProducerConfig)).
+  produce_nil_result(brod:start_producer(ClientName,
+                                         Topic,
+                                         process_producer_config(ProducerConfig))).
 
 stop_group_subscriber(Pid) ->
   case brod_group_subscriber_v2:stop(Pid) of
     ok ->
-      {ok, nil}
+      {ok, nil};
+    {error, Reason} ->
+      {error, map_group_error(Reason)}
   end.
 
 list_groups({endpoint, Hostname, Port}) ->
   case brod:list_groups({Hostname, Port}, []) of
     {ok, Groups} ->
-      {ok, lists:map(fun({brod_cg, Id, Type}) -> {consumer_group, Id, Type} end, Groups)};
+      {ok, lists:map(fun({brod_cg, Id, Type}) -> {Id, Type} end, Groups)};
     {error, Reason} ->
-      {error, map_error(Reason)}
+      {error, map_group_error(Reason)}
   end.
 
 delete_topics(Endpoints, Topics, Timeout) ->
   TupleEndpoints =
     lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
-  nil_result(brod:delete_topics(TupleEndpoints, Topics, Timeout)).
+  topic_nil_result(brod:delete_topics(TupleEndpoints, Topics, Timeout)).

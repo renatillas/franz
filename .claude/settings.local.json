@@ -15,7 +15,9 @@
       "Bash(nc:*)",
       "Bash(mv:*)",
       "Bash(awk:*)",
-      "Bash(gleam add:*)"
+      "Bash(gleam add:*)",
+      "mcp__gleam_packages__get_modules",
+      "mcp__gleam_packages__get_module_info"
     ]
   },
   "enableAllProjectMcpServers": false

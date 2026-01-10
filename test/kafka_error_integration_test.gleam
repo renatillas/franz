@@ -1,211 +1,56 @@
+//// Integration tests for Franz error types.
+////
+//// These tests verify that Kafka errors are correctly mapped to the appropriate
+//// Franz error types. Each test triggers a specific error condition and asserts
+//// that the correct error variant is returned.
+////
+//// ## Running These Tests
+////
+//// These tests require a running Kafka broker on localhost:9092.
+////
+//// ```sh
+//// # Start Kafka (using Docker)
+//// docker run -d --name kafka -p 9092:9092 apache/kafka:latest
+//// sleep 15
+////
+//// # Run tests
+//// gleam test
+////
+//// # Cleanup
+//// docker stop kafka && docker rm kafka
+//// ```
+////
+//// ## Test Coverage
+////
+//// | Error Type | Test | Trigger |
+//// |------------|------|---------|
+//// | `TopicAlreadyExists` | `topic_already_exists_test` | Create duplicate topic |
+//// | `TopicInvalidPartitions` | `topic_invalid_partitions_test` | Create topic with 0 partitions |
+//// | `TopicInvalidReplicationFactor` | `topic_invalid_replication_factor_test` | Replication > brokers |
+//// | `ProducerNotFound` | `producer_not_found_test` | Produce without starting producer |
+//// | `FetchTopicNotFound` | `fetch_topic_not_found_test` | Fetch from non-existent topic |
+//// | `FetchOffsetOutOfRange` | `fetch_offset_out_of_range_test` | Fetch with invalid offset |
+
 import franz
-import franz/producer
-import gleam/dynamic/decode
 import gleam/erlang/process
-import gleam/otp/actor
 import gleam/result
-import gleeunit/should
 
-// Test 1: BrokerNotAvailable - Connect to non-existent broker
-// SKIP: This test requires specific network conditions
-pub fn broker_not_available_test_skip() {
-  let name = process.new_name("broker_not_available_test")
-  let endpoint = franz.Endpoint("127.0.0.1", 9999)
+// =============================================================================
+// TopicError Tests
+// =============================================================================
 
-  let assert Error(actor.InitExited(process.Abnormal(dynamic))) =
-    franz.new([endpoint], name)
-    |> franz.start()
-
-  assert Ok(franz.BrokerNotAvailable)
-    == decode.string
-    |> decode.then(fn(decoded_string) {
-      case decoded_string {
-        "BrokerNotAvailable" -> decode.success(franz.BrokerNotAvailable)
-        _ ->
-          decode.failure(
-            franz.UnknownError,
-            "Unexpected error: " <> decoded_string,
-          )
-      }
-    })
-    |> decode.run(dynamic, _)
-}
-
-// Test 2: UnknownTopicOrPartition - Fetch from non-existent topic with auto-creation disabled
-pub fn unknown_topic_or_partition_test() {
-  let name = process.new_name("unknown_topic_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-
-  let assert Ok(_) =
-    franz.new([endpoint], name)
-    |> franz.with_config(franz.AllowTopicAutoCreation(False))
-    |> franz.start()
-
-  let client = franz.named_client(name)
-  let non_existent_topic = "non_existent_topic_12345"
-
-  // Try to fetch from non-existent topic
-  let result =
-    franz.fetch(
-      client: client,
-      topic: non_existent_topic,
-      partition: 0,
-      offset: 0,
-      options: [],
-    )
-
-  case result {
-    Error(franz.UnknownTopicOrPartition) -> {
-      // Expected error
-      Nil
-    }
-    Error(_other) ->
-      panic as "Expected UnknownTopicOrPartition, got different error"
-    Ok(_) -> panic as "Expected error for non-existent topic"
-  }
-
-  franz.stop_client(client)
-}
-
-// Test 3: OffsetOutOfRange - Fetch with invalid offset
-pub fn offset_out_of_range_test() {
-  let name = process.new_name("offset_out_of_range_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "offset_test_topic"
-
-  // Clean up any existing topic first
-  let _ =
-    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
-
-  // Create topic
-  franz.create_topic(
-    endpoints: [endpoint],
-    name: topic,
-    partitions: 1,
-    replication_factor: 1,
-    configs: [],
-    timeout_ms: 5000,
-  )
-  |> should.be_ok()
-
-  let assert Ok(_) =
-    franz.new([endpoint], name)
-    |> franz.start()
-
-  let client = franz.named_client(name)
-
-  // Try to fetch from a very high offset that doesn't exist
-  let result =
-    franz.fetch(
-      client: client,
-      topic: topic,
-      partition: 0,
-      offset: 999_999_999,
-      options: [],
-    )
-
-  case result {
-    Error(franz.OffsetOutOfRange) -> {
-      // Expected error
-      Nil
-    }
-    Error(_other) -> {
-      // Different Kafka versions might return different errors for high offsets
-      // The important thing is that an error is returned
-      Nil
-    }
-    Ok(_) -> panic as "Expected error for out of range offset"
-  }
-
-  franz.stop_client(client)
-
-  // Cleanup
-  franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
-  |> result.unwrap(Nil)
-}
-
-// Test 4: LeaderNotAvailable - Try to produce immediately after topic creation
-pub fn leader_not_available_test() {
-  let name = process.new_name("leader_not_available_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "leader_test_topic_12345"
-
-  // Delete topic if it exists
-  let _ =
-    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
-
-  // Create topic
-  franz.create_topic(
-    endpoints: [endpoint],
-    name: topic,
-    partitions: 3,
-    replication_factor: 1,
-    configs: [],
-    timeout_ms: 5000,
-  )
-  |> should.be_ok()
-
-  let assert Ok(_) =
-    franz.new([endpoint], name)
-    |> franz.start()
-
-  let client = franz.named_client(name)
-
-  // Immediately try to produce without starting producer
-  // This might trigger leader election errors
-  let result =
-    producer.produce_sync(
-      client: client,
-      topic: topic,
-      partition: producer.Partition(0),
-      key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
-    )
-
-  // The error might be LeaderNotAvailable or it might succeed if leader election is fast
-  // Let's just ensure we handle it properly
-  case result {
-    Error(franz.LeaderNotAvailable) -> Nil
-    Error(franz.ProducerNotFound(_, _)) -> {
-      // Producer needs to be started first
-      producer.new(client, topic)
-      |> producer.start()
-      |> should.be_ok()
-    }
-    Error(_) -> Nil
-    // Other errors are acceptable
-    Ok(_) -> Nil
-  }
-
-  franz.stop_client(client)
-
-  // Cleanup
-  franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
-  |> result.unwrap(Nil)
-}
-
-// Test 5: TopicAlreadyExists - Try to create a topic that already exists
+/// Test TopicAlreadyExists - Create a topic that already exists
 pub fn topic_already_exists_test() {
   let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "duplicate_topic_test"
+  let topic = "error_test_topic_already_exists"
 
-  // Clean up any existing topic first
+  // Clean up first
   let _ =
-    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 1000)
+    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+  process.sleep(500)
 
-  // Create topic first time
-  franz.create_topic(
-    endpoints: [endpoint],
-    name: topic,
-    partitions: 1,
-    replication_factor: 1,
-    configs: [],
-    timeout_ms: 5000,
-  )
-  |> should.be_ok()
-
-  // Try to create the same topic again
-  let result =
+  // Create topic first time - should succeed
+  let assert Ok(Nil) =
     franz.create_topic(
       endpoints: [endpoint],
       name: topic,
@@ -215,31 +60,28 @@ pub fn topic_already_exists_test() {
       timeout_ms: 5000,
     )
 
-  case result {
-    Error(franz.TopicAlreadyExists) -> {
-      // Expected error
-      Nil
-    }
-    Error(_other) -> {
-      // Kafka might return a generic error instead of TopicAlreadyExists
-      // depending on configuration
-      Nil
-    }
-    Ok(_) -> panic as "Expected error for duplicate topic creation"
-  }
+  // Try to create the same topic again - should fail with TopicAlreadyExists
+  let assert Error(franz.TopicAlreadyExists) =
+    franz.create_topic(
+      endpoints: [endpoint],
+      name: topic,
+      partitions: 1,
+      replication_factor: 1,
+      configs: [],
+      timeout_ms: 5000,
+    )
 
   // Cleanup
   franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
   |> result.unwrap(Nil)
 }
 
-// Test 6: InvalidPartitions - Create topic with invalid number of partitions
-pub fn invalid_partitions_test() {
+/// Test TopicInvalidPartitions - Create topic with 0 partitions
+pub fn topic_invalid_partitions_test() {
   let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "invalid_partitions_test"
+  let topic = "error_test_invalid_partitions"
 
-  // Try to create topic with 0 partitions
-  let result =
+  let assert Error(franz.TopicInvalidPartitions) =
     franz.create_topic(
       endpoints: [endpoint],
       name: topic,
@@ -248,191 +90,137 @@ pub fn invalid_partitions_test() {
       configs: [],
       timeout_ms: 5000,
     )
-
-  case result {
-    Error(franz.InvalidPartitions) -> {
-      // Expected error
-      Nil
-    }
-    Error(_other) -> {
-      // Some Kafka versions might return a different error
-      Nil
-    }
-    Ok(_) -> panic as "Expected error for 0 partitions"
-  }
 }
 
-// Test 7: InvalidReplicationFactor - Create topic with invalid replication factor  
-// SKIP: This test requires multi-broker setup
-pub fn invalid_replication_factor_test_skip() {
+/// Test TopicInvalidReplicationFactor - Create topic with replication > brokers
+pub fn topic_invalid_replication_factor_test() {
   let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "invalid_replication_test"
+  let topic = "error_test_invalid_replication"
 
-  // Try to create topic with replication factor > number of brokers
-  // Assuming single-broker setup
-  let result =
+  // Try to create topic with replication factor of 10 (assuming single broker)
+  let assert Error(franz.TopicInvalidReplicationFactor) =
     franz.create_topic(
       endpoints: [endpoint],
       name: topic,
       partitions: 1,
       replication_factor: 10,
-      // Too high for single broker
+      configs: [],
+      timeout_ms: 5000,
+    )
+}
+
+// =============================================================================
+// ProduceError Tests
+// =============================================================================
+
+/// Test ProducerNotFound - Produce without starting producer
+pub fn producer_not_found_test() {
+  let name = process.new_name("error_test_producer_not_found")
+  let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "error_test_producer_not_found_topic"
+
+  let assert Ok(_) =
+    franz.client()
+    |> franz.endpoints([endpoint])
+    |> franz.name(name)
+    |> franz.option(franz.AutoStartProducers(False))
+    |> franz.start()
+
+  let client = franz.named(name)
+
+  // Try to produce without starting producer
+  assert Error(franz.ProducerNotFound(topic, 0))
+    == franz.produce_sync(
+      client: client,
+      topic: topic,
+      partition: franz.SinglePartition(0),
+      key: <<"key">>,
+      value: franz.Value(<<"value">>, []),
+    )
+
+  franz.stop(client)
+}
+
+// =============================================================================
+// FetchError Tests
+// =============================================================================
+
+/// Test FetchTopicNotFound - Fetch from non-existent topic
+pub fn fetch_topic_not_found_test() {
+  let name = process.new_name("error_test_fetch_topic_not_found")
+  let endpoint = franz.Endpoint("localhost", 9092)
+  let non_existent_topic = "error_test_nonexistent_topic"
+
+  let assert Ok(_) =
+    franz.client()
+    |> franz.endpoints([endpoint])
+    |> franz.name(name)
+    |> franz.option(franz.AllowTopicAutoCreation(False))
+    |> franz.start()
+
+  let client = franz.named(name)
+
+  // Try to fetch from non-existent topic
+  let assert Error(franz.FetchTopicNotFound) =
+    franz.fetch(
+      client: client,
+      topic: non_existent_topic,
+      partition: 0,
+      offset: 0,
+      options: [],
+    )
+
+  franz.stop(client)
+}
+
+/// Test FetchOffsetOutOfRange - Fetch with very high offset
+pub fn fetch_offset_out_of_range_test() {
+  let name = process.new_name("error_test_fetch_offset_out_of_range")
+  let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "error_test_offset_out_of_range"
+
+  // Clean up and create topic
+  let _ =
+    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+  process.sleep(500)
+
+  let assert Ok(Nil) =
+    franz.create_topic(
+      endpoints: [endpoint],
+      name: topic,
+      partitions: 1,
+      replication_factor: 1,
       configs: [],
       timeout_ms: 5000,
     )
 
-  case result {
-    Error(franz.InvalidReplicationFactor) -> {
-      // Expected error
-      Nil
-    }
-    Error(_) -> {
-      // Kafka might return a different error
-      Nil
-    }
-    Ok(_) -> panic as "Expected error for invalid replication factor"
-  }
-}
-
-// Test 8: MessageTooLarge - Try to produce a message that's too large
-// SKIP: This test may crash the producer
-pub fn message_too_large_test_skip() {
-  let name = process.new_name("message_too_large_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "large_message_test"
-
-  // Create topic with small max message size
-  franz.create_topic(
-    endpoints: [endpoint],
-    name: topic,
-    partitions: 1,
-    replication_factor: 1,
-    configs: [#("max.message.bytes", "1000")],
-    // 1KB max
-    timeout_ms: 5000,
-  )
-  |> should.be_ok()
-
   let assert Ok(_) =
-    franz.new([endpoint], name)
+    franz.client()
+    |> franz.endpoints([endpoint])
+    |> franz.name(name)
     |> franz.start()
 
-  let client = franz.named_client(name)
+  let client = franz.named(name)
 
-  producer.new(client, topic)
-  |> producer.start()
-  |> should.be_ok()
+  // Wait for topic to be ready
+  process.sleep(1000)
 
-  // Create a large message (>1KB)
-  let large_value = create_large_string(2000)
-  // 2KB
-
-  let result =
-    producer.produce_sync(
+  // Try to fetch from a very high offset that doesn't exist
+  let assert Error(franz.FetchOffsetOutOfRange) =
+    franz.fetch(
       client: client,
       topic: topic,
-      partition: producer.Partition(0),
-      key: <<"key">>,
-      value: producer.Value(large_value, []),
+      partition: 0,
+      offset: 999_999_999,
+      options: [],
     )
 
-  case result {
-    Error(franz.MessageTooLarge) -> {
-      // Expected error
-      Nil
-    }
-    Error(_other) -> {
-      panic as "Expected MessageTooLarge, got different error"
-    }
-    Ok(_) -> {
-      panic as "Expected error for large message, but succeeded"
-    }
-  }
-
-  franz.stop_client(client)
+  franz.stop(client)
 
   // Cleanup
   franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
   |> result.unwrap(Nil)
 }
-
-// Test 9: ProducerNotFound - Try to produce without starting producer
-pub fn producer_not_found_test() {
-  let name = process.new_name("producer_not_found_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-  let topic = "producer_not_found_test"
-
-  let assert Ok(_) =
-    franz.new([endpoint], name)
-    |> franz.with_config(franz.AutoStartProducers(False))
-    |> franz.start()
-
-  let client = franz.named_client(name)
-
-  // Try to produce without starting producer
-  let result =
-    producer.produce_sync(
-      client: client,
-      topic: topic,
-      partition: producer.Partition(0),
-      key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
-    )
-
-  case result {
-    Error(franz.ProducerNotFound(t, p)) -> {
-      // Expected error
-      t |> should.equal(topic)
-      p |> should.equal(0)
-    }
-    Error(_other) -> panic as "Expected ProducerNotFound, got different error"
-    Ok(_) -> panic as "Expected error for missing producer"
-  }
-
-  franz.stop_client(client)
-}
-
-// Test 10: RequestTimedOut - Set very short timeout
-// SKIP: This test is timing-dependent
-pub fn request_timed_out_test_skip() {
-  let name = process.new_name("timeout_test")
-  let endpoint = franz.Endpoint("localhost", 9092)
-
-  let assert Ok(_) =
-    franz.new([endpoint], name)
-    |> franz.start()
-
-  let client = franz.named_client(name)
-
-  // Try to fetch with very short timeout
-  let result =
-    franz.fetch(
-      client: client,
-      topic: "some_topic",
-      partition: 0,
-      offset: 0,
-      options: [
-        franz.MaxWaitTime(1),
-        // 1ms timeout - very short
-      ],
-    )
-
-  // This might timeout or return empty, depending on Kafka's response time
-  let _ = result
-  // Result doesn't matter for this test
-
-  franz.stop_client(client)
-}
-
-// Helper function to create a large string
-fn create_large_string(size: Int) -> BitArray {
-  create_large_string_helper(size, <<>>)
-}
-
-fn create_large_string_helper(remaining: Int, acc: BitArray) -> BitArray {
-  case remaining {
-    0 -> acc
-    n if n < 0 -> acc
-    _ -> create_large_string_helper(remaining - 1, <<acc:bits, "x":utf8>>)
-  }
-}
+// =============================================================================
+// Helper functions
+// =============================================================================

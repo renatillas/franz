@@ -1,10 +1,4 @@
 import franz
-import franz/consumer/config as consumer_config
-import franz/consumer/group_subscriber
-import franz/consumer/message_type
-import franz/consumer/topic_subscriber
-import franz/producer
-import franz/producer/config as producer_config
 import gleam/erlang/process
 import gleeunit
 
@@ -39,9 +33,11 @@ fn setup_client(
   fun fun: fn(franz.Client) -> Nil,
 ) {
   let assert Ok(_actor_started) =
-    franz.new([endpoint], name)
-    |> franz.start
-  let named_client = franz.named_client(name)
+    franz.client()
+    |> franz.endpoints([endpoint])
+    |> franz.name(name)
+    |> franz.start()
+  let named_client = franz.named(name)
 
   fun(named_client)
 }
@@ -81,50 +77,52 @@ pub fn start_client_with_config_test() {
   let endpoint = franz.Endpoint("localhost", 9092)
 
   let assert Ok(_actor_started) =
-    franz.new([endpoint], name)
-    |> franz.with_config(franz.RestartDelaySeconds(100))
-    |> franz.with_config(franz.ReconnectCoolDownSeconds(100))
-    |> franz.with_config(franz.AllowTopicAutoCreation(True))
-    |> franz.with_config(franz.AutoStartProducers(True))
-    |> franz.with_config(franz.UnknownTopicCacheTtl(120_000))
-    |> franz.with_config(
+    franz.client()
+    |> franz.endpoints([endpoint])
+    |> franz.name(name)
+    |> franz.option(franz.RestartDelaySeconds(100))
+    |> franz.option(franz.ReconnectCoolDownSeconds(100))
+    |> franz.option(franz.AllowTopicAutoCreation(True))
+    |> franz.option(franz.AutoStartProducers(True))
+    |> franz.option(franz.UnknownTopicCacheTtl(120_000))
+    |> franz.option(
       franz.DefaultProducerConfig([
-        producer_config.RequiredAcks(1),
-        producer_config.AckTimeout(1000),
-        producer_config.PartitionBufferLimit(1000),
-        producer_config.PartitionOnwireLimit(1000),
-        producer_config.MaxBatchSize(1000),
-        producer_config.MaxRetries(1000),
-        producer_config.RetryBackoffMs(1000),
-        producer_config.Compression(producer_config.NoCompression),
-        producer_config.MaxLingerMs(1000),
-        producer_config.MaxLingerCount(1000),
+        franz.RequiredAcks(1),
+        franz.AckTimeout(1000),
+        franz.PartitionBufferLimit(1000),
+        franz.PartitionOnWireLimit(1000),
+        franz.MaxBatchSize(1000),
+        franz.MaxRetries(1000),
+        franz.RetryBackoffMs(1000),
+        franz.Compression(franz.NoCompression),
+        franz.MaxLingerMs(1000),
+        franz.MaxLingerCount(1000),
       ]),
     )
     |> franz.start()
 
-  let client = franz.named_client(name)
-  assert Nil == franz.stop_client(client)
+  let client = franz.named(name)
+  assert Nil == franz.stop(client)
 }
 
 pub fn producer_produce_sync_test() {
   let name = process.new_name("producer_sync")
   let endpoint = franz.Endpoint("localhost", 9092)
-  let partition = producer.Partition(0)
+  let partition = franz.SinglePartition(0)
   let topic = "test_topic"
   use <- setup_topics(topic:, endpoint:)
   use client <- setup_client(endpoint:, name:)
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
 
   assert Ok(Nil)
-    == producer.produce_sync(
+    == franz.produce_sync(
       client:,
       topic:,
       partition:,
       key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
+      value: franz.Value(<<"value">>, []),
     )
 }
 
@@ -135,16 +133,16 @@ pub fn producer_produce_sync_offset_test() {
   use <- setup_topics(topic:, endpoint:)
   use client <- setup_client(endpoint:, name:)
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
 
   assert Ok(0)
-    == producer.produce_sync_offset(
+    == franz.produce_sync_offset(
       client: client,
       topic: "test_topic",
-      partition: producer.Partition(0),
+      partition: franz.SinglePartition(0),
       key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
+      value: franz.Value(<<"value">>, []),
     )
 }
 
@@ -155,27 +153,26 @@ pub fn producer_produce_cb_test() {
   use <- setup_topics(topic:, endpoint:)
   use client <- setup_client(endpoint:, name:)
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
   let offset_subject = process.new_subject()
   let partition_subject = process.new_subject()
 
-  assert Ok(producer.Partition(0))
-    == producer.produce_cb(
+  assert Ok(franz.SinglePartition(0))
+    == franz.produce_async(
       client: client,
       topic: "test_topic",
-      partition: producer.Partition(0),
+      partition: franz.SinglePartition(0),
       key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
+      value: franz.Value(<<"value">>, []),
       callback: fn(partition, offset) {
         process.send(offset_subject, offset)
         process.send(partition_subject, partition)
       },
     )
 
-  let assert Ok(producer.CbPartition(0)) =
-    process.receive(partition_subject, 1000)
-  let assert Ok(producer.CbOffset(0)) = process.receive(offset_subject, 1000)
+  let assert Ok(franz.Partition(0)) = process.receive(partition_subject, 1000)
+  let assert Ok(franz.Offset(0)) = process.receive(offset_subject, 1000)
   Nil
 }
 
@@ -186,16 +183,16 @@ pub fn produce_no_ack_test() {
   use <- setup_topics(topic:, endpoint:)
   use client <- setup_client(endpoint:, name:)
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
 
   assert Ok(Nil)
-    == producer.produce_no_ack(
+    == franz.produce(
       client: client,
       topic: "test_topic",
-      partition: producer.Partition(0),
+      partition: franz.SinglePartition(0),
       key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
+      value: franz.Value(<<"value">>, []),
     )
 }
 
@@ -207,21 +204,19 @@ pub fn start_producer_with_config_test() {
   use client <- setup_client(endpoint:, name:)
 
   assert Ok(Nil)
-    == producer.new(client, topic)
-    |> producer.with_config(producer_config.RequiredAcks(1))
-    |> producer.with_config(producer_config.RequiredAcks(1))
-    |> producer.with_config(producer_config.AckTimeout(1000))
-    |> producer.with_config(producer_config.PartitionBufferLimit(1000))
-    |> producer.with_config(producer_config.PartitionOnwireLimit(1000))
-    |> producer.with_config(producer_config.MaxBatchSize(1000))
-    |> producer.with_config(producer_config.MaxRetries(1000))
-    |> producer.with_config(producer_config.RetryBackoffMs(1000))
-    |> producer.with_config(producer_config.Compression(
-      producer_config.NoCompression,
-    ))
-    |> producer.with_config(producer_config.MaxLingerMs(1000))
-    |> producer.with_config(producer_config.MaxLingerCount(1000))
-    |> producer.start()
+    == franz.producer(client, topic)
+    |> franz.producer_option(franz.RequiredAcks(1))
+    |> franz.producer_option(franz.RequiredAcks(1))
+    |> franz.producer_option(franz.AckTimeout(1000))
+    |> franz.producer_option(franz.PartitionBufferLimit(1000))
+    |> franz.producer_option(franz.PartitionOnWireLimit(1000))
+    |> franz.producer_option(franz.MaxBatchSize(1000))
+    |> franz.producer_option(franz.MaxRetries(1000))
+    |> franz.producer_option(franz.RetryBackoffMs(1000))
+    |> franz.producer_option(franz.Compression(franz.NoCompression))
+    |> franz.producer_option(franz.MaxLingerMs(1000))
+    |> franz.producer_option(franz.MaxLingerCount(1000))
+    |> franz.producer_start()
 }
 
 pub fn start_topic_subscriber_test() {
@@ -234,34 +229,36 @@ pub fn start_topic_subscriber_test() {
   let partition_subject = process.new_subject()
   let message_subject = process.new_subject()
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
 
   let assert Ok(_actor_started) =
-    topic_subscriber.new(
-      name: subscriber_name,
-      client:,
-      topic:,
-      partitions: topic_subscriber.Partitions([0]),
-      message_type: message_type.Message,
-      callback: fn(partition: Int, message: franz.KafkaMessage, cb_state: Int) {
-        process.send(partition_subject, partition)
-        process.send(message_subject, message)
-        topic_subscriber.ack(cb_state)
-      },
-      init_callback_state: 0,
+    franz.TopicSubscriberConfig(
+      ..franz.default_topic_subscriber(
+        subscriber_name,
+        client:,
+        topic:,
+        callback: fn(partition: Int, message: franz.KafkaMessage, cb_state: Int) {
+          process.send(partition_subject, partition)
+          process.send(message_subject, message)
+          franz.TopicAck(cb_state)
+        },
+        initial_state: 0,
+      ),
+      partitions: franz.Partitions([0]),
+      message_type: franz.SingleMessage,
+      committed_offsets: [#(0, -1)],
     )
-    |> topic_subscriber.with_commited_offset(partition: 0, offset: -1)
-    |> topic_subscriber.start()
+    |> franz.start_topic_subscriber()
   process.sleep(100)
 
   let assert Ok(Nil) =
-    producer.produce_sync(
+    franz.produce_sync(
       client:,
       topic:,
-      partition: producer.Partition(0),
+      partition: franz.SinglePartition(0),
       key: <<"key">>,
-      value: producer.Value(<<"value">>, []),
+      value: franz.Value(<<"value">>, []),
     )
 
   assert Ok(0) == process.receive(partition_subject, 2000)
@@ -292,16 +289,16 @@ pub fn start_group_subscriber_test() {
 
   // First produce a message
   let assert Ok(Nil) =
-    producer.new(client, topic)
-    |> producer.start()
+    franz.producer(client, topic)
+    |> franz.producer_start()
 
   assert Ok(Nil)
-    == producer.produce_sync(
+    == franz.produce_sync(
       client: client,
       topic:,
-      partition: producer.Partition(0),
+      partition: franz.SinglePartition(0),
       key: <<"test_key">>,
-      value: producer.Value(<<"test_value">>, []),
+      value: franz.Value(<<"test_value">>, []),
     )
 
   // Small delay to ensure message is committed
@@ -309,25 +306,24 @@ pub fn start_group_subscriber_test() {
 
   // Now start the consumer with earliest offset to read the existing message
   let assert Ok(_) =
-    group_subscriber.new(
-      name: subscriber_name,
-      client: client,
-      group_id: "test_consumer_group_unique",
-      topics: [topic],
-      message_type: message_type.Message,
-      callback: fn(message: franz.KafkaMessage, cb_state) {
-        process.send(message_subject, message)
-        group_subscriber.commit(cb_state)
-      },
-      init_callback_state: 0,
+    franz.GroupSubscriberConfig(
+      ..franz.default_group_subscriber_config(
+        subscriber_name,
+        client:,
+        group_id: "test_consumer_group_unique",
+        topics: [topic],
+        callback: fn(message: franz.KafkaMessage, cb_state) {
+          process.send(message_subject, message)
+          franz.GroupCommit(cb_state)
+        },
+        init_state: 0,
+      ),
+      consumer_options: [
+        franz.BeginOffset(franz.Earliest),
+        franz.OffsetResetPolicy(franz.ResetToEarliest),
+      ],
     )
-    |> group_subscriber.with_consumer_config(consumer_config.BeginOffset(
-      consumer_config.Earliest,
-    ))
-    |> group_subscriber.with_consumer_config(consumer_config.OffsetResetPolicy(
-      consumer_config.ResetToEarliest,
-    ))
-    |> group_subscriber.start()
+    |> franz.start_group_subscriber()
 
   // Wait for the consumer to read the message
   let assert Ok(franz.KafkaMessage(
@@ -337,4 +333,18 @@ pub fn start_group_subscriber_test() {
     ..,
   )) = process.receive(message_subject, 10_000)
   process.sleep(500)
+}
+
+// Test LZ4 compression (new in 3.0.0)
+pub fn producer_with_lz4_compression_test() {
+  let name = process.new_name("producer_lz4")
+  let endpoint = franz.Endpoint("localhost", 9092)
+  let topic = "test_topic"
+  use <- setup_topics(topic:, endpoint:)
+  use client <- setup_client(endpoint:, name:)
+
+  assert Ok(Nil)
+    == franz.producer(client, topic)
+    |> franz.producer_option(franz.Compression(franz.Lz4))
+    |> franz.producer_start()
 }
