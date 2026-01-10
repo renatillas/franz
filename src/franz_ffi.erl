@@ -1,9 +1,14 @@
 -module(franz_ffi).
 
 -export([produce_no_ack/5, delete_topics/3, list_groups/1, stop_group_subscriber/1,
-         fetch/5, produce_cb/6, stop_client/1, produce_sync/5, start_client/3,
-         produce_sync_offset/5, create_topic/6, start_topic_subscriber/8, ack/1, commit/1,
-         start_group_subscriber/8, start_producer/3]).
+         stop_topic_subscriber/1, fetch/5, produce_cb/6, stop_client/1, produce_sync/5,
+         start_client/3, produce_sync_offset/5, create_topic/6, start_topic_subscriber/8,
+         group_ack/1, group_commit/1, topic_ack/1, start_group_subscriber/8, start_producer/3,
+         identity/1, make_value/2, make_value_with_ts/3]).
+
+%% Identity function for type coercion in Gleam
+identity(X) ->
+  X.
 
 %% Error mapping for topic administration operations
 map_topic_error(Reason) ->
@@ -38,7 +43,7 @@ map_topic_error(Reason) ->
             nomatch ->
               case string:find(ErrorStr, "replication factor") of
                 nomatch ->
-                  topic_unknown_error;
+                  {topic_unknown_error, Reason};
                 _ ->
                   topic_invalid_replication_factor
               end;
@@ -49,7 +54,7 @@ map_topic_error(Reason) ->
           topic_already_exists
       end;
     _ ->
-      topic_unknown_error
+      {topic_unknown_error, Reason}
   end.
 
 %% Error mapping for produce operations
@@ -90,7 +95,7 @@ map_produce_error(Reason) ->
     broker_not_available ->
       producer_broker_not_available;
     _ ->
-      producer_unknown_error
+      {producer_unknown_error, Reason}
   end.
 
 %% Error mapping for fetch/consume operations
@@ -127,7 +132,7 @@ map_fetch_error(Reason) ->
     broker_not_available ->
       fetch_broker_not_available;
     _ ->
-      fetch_unknown_error
+      {fetch_unknown_error, Reason}
   end.
 
 %% Error mapping for group operations
@@ -166,7 +171,7 @@ map_group_error(Reason) ->
     broker_not_available ->
       group_broker_not_available;
     _ ->
-      group_unknown_error
+      {group_unknown_error, Reason}
   end.
 
 %% Helper for produce operations returning nil
@@ -187,108 +192,13 @@ topic_nil_result(Result) ->
       {error, map_topic_error(Reason)}
   end.
 
-%% Process client config options
-process_client_config(Options) ->
-  lists:flatmap(fun process_client_option/1, Options).
-
-%% Client options - Gleam FfiClientOption constructors become ffi_* atoms
-process_client_option({ffi_sasl, SaslConfig}) ->
-  [{sasl, process_sasl_config(SaslConfig)}];
-process_client_option({ffi_ssl, SslConfig}) ->
-  [{ssl, process_ssl_config(SslConfig)}];
-process_client_option({ffi_connect_timeout_ms, Ms}) ->
-  [{connect_timeout, Ms}];
-process_client_option({ffi_request_timeout_ms, Ms}) ->
-  [{request_timeout, Ms}];
-process_client_option({ffi_restart_delay_seconds, Seconds}) ->
-  [{restart_delay_seconds, Seconds}];
-process_client_option({ffi_reconnect_cool_down_seconds, Seconds}) ->
-  [{reconnect_cool_down_seconds, Seconds}];
-process_client_option({ffi_allow_topic_auto_creation, Bool}) ->
-  [{allow_topic_auto_creation, Bool}];
-process_client_option({ffi_auto_start_producers, Bool}) ->
-  [{auto_start_producers, Bool}];
-process_client_option({ffi_default_producer_config, Config}) ->
-  [{default_producer_config, process_producer_config(Config)}];
-process_client_option({ffi_unknown_topic_cache_ttl_seconds, Seconds}) ->
-  [{topic_metadata_refresh_interval_seconds, Seconds}];
-process_client_option(Other) ->
-  [Other].
-
-%% SASL configuration
-process_sasl_config({sasl_credentials, Mechanism, Username, Password}) ->
-  {process_sasl_mechanism(Mechanism), Username, Password}.
-
-process_sasl_mechanism(plain) ->
-  plain;
-process_sasl_mechanism(scram_sha_256) ->
-  scram_sha_256;
-process_sasl_mechanism(scram_sha_512) ->
-  scram_sha_512.
-
-%% SSL configuration
-process_ssl_config(ssl_enabled) ->
-  true;
-process_ssl_config({ssl_with_options, CaCertFile, CertFile, KeyFile, Verify}) ->
-  Options0 = [],
-  Options1 = maybe_add_option(cacertfile, CaCertFile, Options0),
-  Options2 = maybe_add_option(certfile, CertFile, Options1),
-  Options3 = maybe_add_option(keyfile, KeyFile, Options2),
-  Options4 = add_verify_option(Verify, Options3),
-  Options4.
-
-maybe_add_option(_Key, none, Options) ->
-  Options;
-maybe_add_option(Key, {some, Value}, Options) ->
-  [{Key, Value} | Options].
-
-add_verify_option(verify_peer, Options) ->
-  [{verify, verify_peer} | Options];
-add_verify_option(verify_none, Options) ->
-  [{verify, verify_none} | Options].
-
-%% Producer configuration
-process_producer_config(Options) ->
-  lists:map(fun process_producer_option/1, Options).
-
-%% Producer options - Gleam FfiProducerOption constructors become ffi_* atoms
-process_producer_option({ffi_required_acks, Acks}) ->
-  {required_acks, Acks};
-process_producer_option({ffi_ack_timeout_ms, Ms}) ->
-  {ack_timeout, Ms};
-process_producer_option({ffi_partition_buffer_limit, Limit}) ->
-  {partition_buffer_limit, Limit};
-process_producer_option({ffi_partition_on_wire_limit, Limit}) ->
-  {partition_onwire_limit, Limit};
-process_producer_option({ffi_max_batch_size, Size}) ->
-  {max_batch_size, Size};
-process_producer_option({ffi_max_retries, Retries}) ->
-  {max_retries, Retries};
-process_producer_option({ffi_retry_backoff_ms, Ms}) ->
-  {retry_backoff_ms, Ms};
-process_producer_option({ffi_compression, Compression}) ->
-  {compression, process_compression(Compression)};
-process_producer_option({ffi_max_linger_ms, Ms}) ->
-  {max_linger_ms, Ms};
-process_producer_option({ffi_max_linger_count, Count}) ->
-  {max_linger_count, Count};
-process_producer_option(Other) ->
-  Other.
-
-process_compression(no_compression) ->
-  no_compression;
-process_compression(gzip) ->
-  gzip;
-process_compression(snappy) ->
-  snappy;
-process_compression(lz4) ->
-  lz4.
-
 start_client(Endpoints, ClientConfig, ClientName) ->
+  %% Convert endpoints from Gleam format {endpoint, Host, Port} to brod format {Host, Port}
   TupleEndpoints =
     lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
-  ProcessedConfig = process_client_config(ClientConfig),
-  case brod:start_link_client(TupleEndpoints, ClientName, ProcessedConfig) of
+  %% ClientConfig is already in brod format (list of {atom, value} tuples)
+  %% built by Gleam's client_option_to_brod function
+  case brod:start_link_client(TupleEndpoints, ClientName, ClientConfig) of
     {ok, Pid} ->
       {ok, Pid};
     {error, Reason} ->
@@ -317,7 +227,7 @@ map_client_error(Reason) ->
     illegal_sasl_state ->
       client_illegal_sasl_state;
     _ ->
-      client_unknown_error
+      {client_unknown_error, Reason}
   end.
 
 produce_sync_offset(Client, Topic, Partition, Key, Value) ->
@@ -326,7 +236,7 @@ produce_sync_offset(Client, Topic, Partition, Key, Value) ->
                                 Topic,
                                 consumer_partition(Partition),
                                 Key,
-                                value(Value))
+                                Value)
   of
     {ok, Offset} ->
       {ok, Offset};
@@ -340,7 +250,7 @@ produce_sync(Client, Topic, Partition, Key, Value) ->
                                        Topic,
                                        consumer_partition(Partition),
                                        Key,
-                                       value(Value))).
+                                       Value)).
 
 produce_no_ack(Client, Topic, Partition, Key, Value) ->
   {client, ClientName} = Client,
@@ -348,7 +258,7 @@ produce_no_ack(Client, Topic, Partition, Key, Value) ->
                                          Topic,
                                          consumer_partition(Partition),
                                          Key,
-                                         value(Value))).
+                                         Value)).
 
 produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
   {client, ClientName} = Client,
@@ -356,7 +266,7 @@ produce_cb(Client, Topic, Partition, Key, Value, AckCb) ->
                        Topic,
                        consumer_partition(Partition),
                        Key,
-                       value(Value),
+                       Value,
                        fun(P, O) -> AckCb({partition, P}, {offset, O}) end)
   of
     ok ->
@@ -421,7 +331,7 @@ map_topic_error_code(ErrorCode, ErrorMsg) ->
       %% Try to match based on error message if error code wasn't recognized
       MappedFromMsg = map_topic_error(ErrorMsg),
       case MappedFromMsg of
-        topic_unknown_error ->
+        {topic_unknown_error, _} ->
           %% Also try matching error code as string in case it's an unexpected atom
           map_topic_error_from_atom(ErrorCode);
         Other ->
@@ -439,7 +349,7 @@ map_topic_error_from_atom(ErrorCode) when is_atom(ErrorCode) ->
         nomatch ->
           case string:find(LowerStr, "replication") of
             nomatch ->
-              topic_unknown_error;
+              {topic_unknown_error, ErrorCode};
             _ ->
               topic_invalid_replication_factor
           end;
@@ -449,8 +359,8 @@ map_topic_error_from_atom(ErrorCode) when is_atom(ErrorCode) ->
     _ ->
       topic_already_exists
   end;
-map_topic_error_from_atom(_) ->
-  topic_unknown_error.
+map_topic_error_from_atom(ErrorCode) ->
+  {topic_unknown_error, ErrorCode}.
 
 start_topic_subscriber(Client,
                        Topic,
@@ -467,20 +377,27 @@ start_topic_subscriber(Client,
           PartitionList
       end,
   {client, ClientName} = Client,
+  %% ConsumerConfig is already in brod format (list of {atom, value} tuples)
+  %% built by Gleam's consumer_option_to_brod function
   brod_topic_subscriber:start_link(ClientName,
                                    Topic,
                                    P,
-                                   consumer_config(ConsumerConfig),
+                                   ConsumerConfig,
                                    CommittedOffsets,
                                    message_type(MessageType),
                                    CbFun,
                                    CbInit).
 
-ack(Any) ->
-  {ok, ack, Any}.
+%% Group subscriber callbacks
+group_ack(State) ->
+  {ok, ack, State}.
 
-commit(Any) ->
-  {ok, commit, Any}.
+group_commit(State) ->
+  {ok, commit, State}.
+
+%% Topic subscriber callback
+topic_ack(State) ->
+  {ok, ack, State}.
 
 %% Convert MessageType to brod format
 message_type(single_message) ->
@@ -488,103 +405,33 @@ message_type(single_message) ->
 message_type(message_batch) ->
   message_set.
 
-%% Convert consumer config options to brod format
-consumer_config(Options) ->
-  lists:map(fun process_consumer_option/1, Options).
-
-%% Consumer options - Gleam FfiConsumerOption constructors become ffi_* atoms
-process_consumer_option({ffi_begin_offset, Offset}) ->
-  {begin_offset, process_offset(Offset)};
-process_consumer_option({ffi_min_bytes, Bytes}) ->
-  {min_bytes, Bytes};
-process_consumer_option({ffi_max_bytes, Bytes}) ->
-  {max_bytes, Bytes};
-process_consumer_option({ffi_max_wait_time_ms, Ms}) ->
-  {max_wait_time, Ms};
-process_consumer_option({ffi_sleep_timeout_ms, Ms}) ->
-  {sleep_timeout, Ms};
-process_consumer_option({ffi_prefetch_count, Count}) ->
-  {prefetch_count, Count};
-process_consumer_option({ffi_prefetch_bytes, Bytes}) ->
-  {prefetch_bytes, Bytes};
-process_consumer_option({ffi_offset_reset_policy, Policy}) ->
-  {offset_reset_policy, process_offset_reset_policy(Policy)};
-process_consumer_option({ffi_size_stat_window, Window}) ->
-  {size_stat_window, Window};
-process_consumer_option({ffi_consumer_isolation_level, Level}) ->
-  {isolation_level, process_isolation_level(Level)};
-process_consumer_option({ffi_share_leader_conn, Bool}) ->
-  {share_leader_conn, Bool};
-process_consumer_option(Other) ->
-  Other.
-
-%% Offset values - Gleam FfiStartingOffset constructors become ffi_* atoms
-process_offset(ffi_latest) ->
-  latest;
-process_offset(ffi_earliest) ->
-  earliest;
-process_offset({ffi_at_timestamp_ms, Ms}) ->
-  Ms;
-process_offset({ffi_at_offset, Offset}) ->
-  Offset.
-
-process_isolation_level(read_committed) ->
-  read_committed;
-process_isolation_level(read_uncommitted) ->
-  read_uncommitted.
-
-process_offset_reset_policy(reset_by_subscriber) ->
-  reset_by_subscriber;
-process_offset_reset_policy(reset_to_earliest) ->
-  reset_to_earliest;
-process_offset_reset_policy(reset_to_latest) ->
-  reset_to_latest.
-
 stop_client(Client) ->
   {client, ClientName} = Client,
   brod:stop_client(ClientName),
   nil.
 
-fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
+fetch(Client, Topic, Partition, Offset, Options) ->
   {client, ClientName} = Client,
-  ProcessedOptions = process_fetch_options(OffsetOptions),
+  %% Options is already in brod format (list of {atom, value} tuples)
+  %% built by Gleam's fetch_option_to_brod function. Convert to map for brod:fetch.
+  ProcessedOptions = maps:from_list(Options),
   case brod:fetch(ClientName, Topic, Partition, Offset, ProcessedOptions) of
     {ok, {HighWaterOffset, Messages}} ->
-      %% Return raw data - conversion happens in Gleam
-      LastOffset = case Messages of
-        [] -> Offset;
-        _ ->
-          LastMsg = lists:last(Messages),
-          element(2, LastMsg) + 1  % offset is the 2nd element in kafka_message record
-      end,
-      {ok, {LastOffset, {Topic, Partition, HighWaterOffset, Messages}}};
+      %% Return raw data - next offset calculation happens in Gleam during decode
+      {ok, {Offset, {Topic, Partition, HighWaterOffset, Messages}}};
     {error, Reason} ->
       {error, map_fetch_error(Reason)}
   end.
 
-process_fetch_options(Options) ->
-  lists:foldl(fun process_fetch_option/2, #{}, Options).
+%% Creates a brod-compatible value map without timestamp
+make_value(Value, Headers) ->
+  #{value => Value, headers => Headers}.
 
-%% Fetch options - Gleam FfiFetchOption constructors become ffi_* atoms
-process_fetch_option({ffi_fetch_max_wait_time_ms, Ms}, Acc) ->
-  Acc#{max_wait_time => Ms};
-process_fetch_option({ffi_fetch_min_bytes, Bytes}, Acc) ->
-  Acc#{min_bytes => Bytes};
-process_fetch_option({ffi_fetch_max_bytes, Bytes}, Acc) ->
-  Acc#{max_bytes => Bytes};
-process_fetch_option({ffi_fetch_isolation_level, Level}, Acc) ->
-  Acc#{isolation_level => process_isolation_level(Level)}.
-
-%% Value - Gleam FfiProduceValue constructors become ffi_* atoms
-value(Value) ->
-  case Value of
-    {ffi_value, V, H} ->
-      #{value => V, headers => H};
-    {ffi_value_with_timestamp_ms, V, TsMs, H} ->
-      #{ts => TsMs,
-        value => V,
-        headers => H}
-  end.
+%% Creates a brod-compatible value map with timestamp in milliseconds
+make_value_with_ts(Value, TsMs, Headers) ->
+  #{value => Value,
+    ts => TsMs,
+    headers => Headers}.
 
 consumer_partition(Partition) ->
   case Partition of
@@ -617,37 +464,13 @@ start_group_subscriber(Client,
       cb_module => franz_group_subscriber_cb_fun,
       init_data => InitData,
       message_type => message_type(MessageType),
-      consumer_config => consumer_config(ConsumerConfig),
-      group_config => process_group_config(GroupConfig)},
+      consumer_config => ConsumerConfig,
+      group_config => GroupConfig},
   brod_group_subscriber_v2:start_link(Args).
-
-%% Convert group config options to brod format
-process_group_config(Options) ->
-  lists:map(fun process_group_option/1, Options).
-
-%% Group options - Gleam FfiGroupOption constructors become ffi_* atoms
-process_group_option({ffi_session_timeout_seconds, Seconds}) ->
-  {session_timeout_seconds, Seconds};
-process_group_option({ffi_rebalance_timeout_seconds, Seconds}) ->
-  {rebalance_timeout_seconds, Seconds};
-process_group_option({ffi_heartbeat_rate_seconds, Seconds}) ->
-  {heartbeat_rate_seconds, Seconds};
-process_group_option({ffi_max_rejoin_attempts, Attempts}) ->
-  {max_rejoin_attempts, Attempts};
-process_group_option({ffi_rejoin_delay_seconds, Seconds}) ->
-  {rejoin_delay_seconds, Seconds};
-process_group_option({ffi_offset_commit_interval_seconds, Seconds}) ->
-  {offset_commit_interval_seconds, Seconds};
-process_group_option({ffi_offset_retention_seconds, Seconds}) ->
-  {offset_retention_seconds, Seconds};
-process_group_option(Other) ->
-  Other.
 
 start_producer(Client, Topic, ProducerConfig) ->
   {client, ClientName} = Client,
-  produce_nil_result(brod:start_producer(ClientName,
-                                         Topic,
-                                         process_producer_config(ProducerConfig))).
+  produce_nil_result(brod:start_producer(ClientName, Topic, ProducerConfig)).
 
 stop_group_subscriber(Pid) ->
   case brod_group_subscriber_v2:stop(Pid) of
@@ -656,6 +479,10 @@ stop_group_subscriber(Pid) ->
     {error, Reason} ->
       {error, map_group_error(Reason)}
   end.
+
+stop_topic_subscriber(Pid) ->
+  ok = brod_topic_subscriber:stop(Pid),
+  {ok, nil}.
 
 list_groups({endpoint, Hostname, Port}) ->
   case brod:list_groups({Hostname, Port}, []) of

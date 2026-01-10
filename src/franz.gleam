@@ -386,179 +386,6 @@ import gleam/time/duration.{type Duration}
 import gleam/time/timestamp.{type Timestamp}
 
 // =============================================================================
-// INTERNAL FFI TYPES
-// =============================================================================
-
-/// Internal client option type with pre-converted integer values for FFI.
-type FfiClientOption {
-  FfiSasl(SaslCredentials)
-  FfiSsl(SslOption)
-  FfiConnectTimeoutMs(Int)
-  FfiRequestTimeoutMs(Int)
-  FfiRestartDelaySeconds(Int)
-  FfiReconnectCoolDownSeconds(Int)
-  FfiAllowTopicAutoCreation(Bool)
-  FfiAutoStartProducers(Bool)
-  FfiDefaultProducerConfig(List(FfiProducerOption))
-  FfiUnknownTopicCacheTtlSeconds(Int)
-}
-
-/// Internal producer option type with pre-converted integer values for FFI.
-type FfiProducerOption {
-  FfiRequiredAcks(Int)
-  FfiAckTimeoutMs(Int)
-  FfiPartitionBufferLimit(Int)
-  FfiPartitionOnWireLimit(Int)
-  FfiMaxBatchSize(Int)
-  FfiMaxRetries(Int)
-  FfiRetryBackoffMs(Int)
-  FfiCompression(Compression)
-  FfiMaxLingerMs(Int)
-  FfiMaxLingerCount(Int)
-}
-
-/// Internal consumer option type with pre-converted integer values for FFI.
-type FfiConsumerOption {
-  FfiBeginOffset(FfiStartingOffset)
-  FfiMinBytes(Int)
-  FfiMaxBytes(Int)
-  FfiMaxWaitTimeMs(Int)
-  FfiSleepTimeoutMs(Int)
-  FfiPrefetchCount(Int)
-  FfiPrefetchBytes(Int)
-  FfiOffsetResetPolicy(OffsetResetPolicy)
-  FfiSizeStatWindow(Int)
-  FfiConsumerIsolationLevel(IsolationLevel)
-  FfiShareLeaderConn(Bool)
-}
-
-/// Internal starting offset type with pre-converted timestamp for FFI.
-type FfiStartingOffset {
-  FfiLatest
-  FfiEarliest
-  FfiAtTimestampMs(Int)
-  FfiAtOffset(Int)
-}
-
-/// Internal group option type with pre-converted integer values for FFI.
-type FfiGroupOption {
-  FfiSessionTimeoutSeconds(Int)
-  FfiRebalanceTimeoutSeconds(Int)
-  FfiHeartbeatRateSeconds(Int)
-  FfiMaxRejoinAttempts(Int)
-  FfiRejoinDelaySeconds(Int)
-  FfiOffsetCommitIntervalSeconds(Int)
-  FfiOffsetRetentionSeconds(Int)
-}
-
-/// Internal fetch option type with pre-converted integer values for FFI.
-type FfiFetchOption {
-  FfiFetchMaxWaitTimeMs(Int)
-  FfiFetchMinBytes(Int)
-  FfiFetchMaxBytes(Int)
-  FfiFetchIsolationLevel(IsolationLevel)
-}
-
-/// Internal produce value type with pre-converted timestamp for FFI.
-type FfiProduceValue {
-  FfiValue(value: BitArray, headers: List(#(String, String)))
-  FfiValueWithTimestampMs(
-    value: BitArray,
-    timestamp_ms: Int,
-    headers: List(#(String, String)),
-  )
-}
-
-// Conversion functions
-
-fn client_option_to_ffi(opt: ClientOption) -> FfiClientOption {
-  case opt {
-    Sasl(creds) -> FfiSasl(creds)
-    Ssl(ssl) -> FfiSsl(ssl)
-    ConnectTimeout(d) -> FfiConnectTimeoutMs(duration_to_ms(d))
-    RequestTimeout(d) -> FfiRequestTimeoutMs(duration_to_ms(d))
-    RestartDelay(d) -> FfiRestartDelaySeconds(duration_to_seconds(d))
-    ReconnectCoolDown(d) -> FfiReconnectCoolDownSeconds(duration_to_seconds(d))
-    AllowTopicAutoCreation(b) -> FfiAllowTopicAutoCreation(b)
-    AutoStartProducers(b) -> FfiAutoStartProducers(b)
-    DefaultProducerConfig(opts) ->
-      FfiDefaultProducerConfig(list.map(opts, producer_option_to_ffi))
-    UnknownTopicCacheTtl(d) ->
-      FfiUnknownTopicCacheTtlSeconds(duration_to_seconds(d))
-  }
-}
-
-fn producer_option_to_ffi(opt: ProducerOption) -> FfiProducerOption {
-  case opt {
-    RequiredAcks(n) -> FfiRequiredAcks(n)
-    AckTimeout(d) -> FfiAckTimeoutMs(duration_to_ms(d))
-    PartitionBufferLimit(n) -> FfiPartitionBufferLimit(n)
-    PartitionOnWireLimit(n) -> FfiPartitionOnWireLimit(n)
-    MaxBatchSize(n) -> FfiMaxBatchSize(n)
-    MaxRetries(n) -> FfiMaxRetries(n)
-    RetryBackoff(d) -> FfiRetryBackoffMs(duration_to_ms(d))
-    Compression(c) -> FfiCompression(c)
-    MaxLinger(d) -> FfiMaxLingerMs(duration_to_ms(d))
-    MaxLingerCount(n) -> FfiMaxLingerCount(n)
-  }
-}
-
-fn consumer_option_to_ffi(opt: ConsumerOption) -> FfiConsumerOption {
-  case opt {
-    BeginOffset(offset) -> FfiBeginOffset(starting_offset_to_ffi(offset))
-    MinBytes(n) -> FfiMinBytes(n)
-    MaxBytes(n) -> FfiMaxBytes(n)
-    MaxWaitTime(d) -> FfiMaxWaitTimeMs(duration_to_ms(d))
-    SleepTimeout(d) -> FfiSleepTimeoutMs(duration_to_ms(d))
-    PrefetchCount(n) -> FfiPrefetchCount(n)
-    PrefetchBytes(n) -> FfiPrefetchBytes(n)
-    OffsetResetPolicy(p) -> FfiOffsetResetPolicy(p)
-    SizeStatWindow(n) -> FfiSizeStatWindow(n)
-    ConsumerIsolationLevel(l) -> FfiConsumerIsolationLevel(l)
-    ShareLeaderConn(b) -> FfiShareLeaderConn(b)
-  }
-}
-
-fn starting_offset_to_ffi(offset: StartingOffset) -> FfiStartingOffset {
-  case offset {
-    Latest -> FfiLatest
-    Earliest -> FfiEarliest
-    AtTimestamp(ts) -> FfiAtTimestampMs(timestamp_to_ms(ts))
-    AtOffset(n) -> FfiAtOffset(n)
-  }
-}
-
-fn group_option_to_ffi(opt: GroupOption) -> FfiGroupOption {
-  case opt {
-    SessionTimeout(d) -> FfiSessionTimeoutSeconds(duration_to_seconds(d))
-    RebalanceTimeout(d) -> FfiRebalanceTimeoutSeconds(duration_to_seconds(d))
-    HeartbeatRate(d) -> FfiHeartbeatRateSeconds(duration_to_seconds(d))
-    MaxRejoinAttempts(n) -> FfiMaxRejoinAttempts(n)
-    RejoinDelay(d) -> FfiRejoinDelaySeconds(duration_to_seconds(d))
-    OffsetCommitInterval(d) ->
-      FfiOffsetCommitIntervalSeconds(duration_to_seconds(d))
-    OffsetRetention(d) -> FfiOffsetRetentionSeconds(duration_to_seconds(d))
-  }
-}
-
-fn fetch_option_to_ffi(opt: FetchOption) -> FfiFetchOption {
-  case opt {
-    FetchMaxWaitTime(d) -> FfiFetchMaxWaitTimeMs(duration_to_ms(d))
-    FetchMinBytes(n) -> FfiFetchMinBytes(n)
-    FetchMaxBytes(n) -> FfiFetchMaxBytes(n)
-    FetchIsolationLevel(l) -> FfiFetchIsolationLevel(l)
-  }
-}
-
-fn produce_value_to_ffi(val: ProduceValue) -> FfiProduceValue {
-  case val {
-    Value(v, h) -> FfiValue(v, h)
-    ValueWithTimestamp(v, ts, h) ->
-      FfiValueWithTimestampMs(v, timestamp_to_ms(ts), h)
-  }
-}
-
-// =============================================================================
 // CORE TYPES
 // =============================================================================
 
@@ -690,8 +517,8 @@ pub type ClientError {
   ClientUnsupportedSaslMechanism
   /// SASL authentication is in an invalid state.
   ClientIllegalSaslState
-  /// An unexpected error occurred.
-  ClientUnknownError
+  /// An unexpected error occurred. Contains the original error for debugging.
+  ClientUnknownError(reason: Dynamic)
 }
 
 /// Errors that can occur during topic administration (create, delete).
@@ -718,8 +545,8 @@ pub type TopicError {
   TopicRequestTimedOut
   /// No broker available to handle the request.
   TopicBrokerNotAvailable
-  /// An unexpected error occurred.
-  TopicUnknownError
+  /// An unexpected error occurred. Contains the original error for debugging.
+  TopicUnknownError(reason: Dynamic)
 }
 
 /// Errors that can occur when producing messages.
@@ -752,8 +579,8 @@ pub type ProduceError {
   ProducerRequestTimedOut
   /// No broker available to handle the request.
   ProducerBrokerNotAvailable
-  /// An unexpected error occurred.
-  ProducerUnknownError
+  /// An unexpected error occurred. Contains the original error for debugging.
+  ProducerUnknownError(reason: Dynamic)
 }
 
 /// Errors that can occur when fetching/consuming messages.
@@ -785,8 +612,8 @@ pub type FetchError {
   FetchRequestTimedOut
   /// No broker available to handle the request.
   FetchBrokerNotAvailable
-  /// An unexpected error occurred.
-  FetchUnknownError
+  /// An unexpected error occurred. Contains the original error for debugging.
+  FetchUnknownError(reason: Dynamic)
 }
 
 /// Errors that can occur with consumer group operations.
@@ -824,8 +651,8 @@ pub type GroupError {
   GroupRequestTimedOut
   /// No broker available to handle the request.
   GroupBrokerNotAvailable
-  /// An unexpected error occurred.
-  GroupUnknownError
+  /// An unexpected error occurred. Contains the original error for debugging.
+  GroupUnknownError(reason: Dynamic)
 }
 
 // =============================================================================
@@ -855,7 +682,7 @@ pub type KafkaMessage {
     /// When this message was created or appended (depending on timestamp_type).
     timestamp: Timestamp,
     /// Optional key-value headers for metadata.
-    headers: List(#(String, String)),
+    headers: List(#(String, BitArray)),
   )
   /// A batch of messages from a single topic-partition.
   /// Returned when using `MessageBatch` message type.
@@ -991,14 +818,14 @@ pub type Partitioner {
 pub type ProduceValue {
   /// Message value with optional headers. Timestamp will be set by the broker
   /// or producer automatically.
-  Value(value: BitArray, headers: List(#(String, String)))
+  Value(value: BitArray, headers: List(#(String, BitArray)))
   /// Message value with explicit timestamp and optional headers.
   /// Use this when you need to control the message timestamp (e.g., event sourcing).
   ValueWithTimestamp(
     value: BitArray,
     /// When this message was created.
     timestamp: Timestamp,
-    headers: List(#(String, String)),
+    headers: List(#(String, BitArray)),
   )
 }
 
@@ -1242,11 +1069,10 @@ pub type GroupOption {
 ///
 /// See [Consumer Groups](https://kafka.apache.org/documentation/#intro_consumers).
 pub type GroupSubscriber {
-  GroupSubscriber(name: process.Name(GroupSubscriberMessage))
+  GroupSubscriber(pid: process.Pid, name: process.Name(GroupSubscriberMessage))
 }
 
 /// Internal message type for group subscriber.
-/// This type is opaque and not intended for direct use.
 pub type GroupSubscriberMessage
 
 /// Action to return from a group subscriber callback after processing a message.
@@ -1292,7 +1118,7 @@ pub type SubscribePartitions {
 /// For most use cases, prefer `GroupSubscriber` which provides automatic
 /// partition assignment and offset management.
 pub type TopicSubscriber {
-  TopicSubscriber(name: process.Name(TopicSubscriberMessage))
+  TopicSubscriber(pid: process.Pid, name: process.Name(TopicSubscriberMessage))
 }
 
 /// Internal message type for topic subscriber.
@@ -1388,13 +1214,6 @@ pub fn ssl(config: ClientConfig, ssl: SslOption) -> ClientConfig {
   option(config, Ssl(ssl))
 }
 
-@external(erlang, "franz_ffi", "start_client")
-fn do_start_client(
-  endpoints: List(Endpoint),
-  options: List(FfiClientOption),
-  name: process.Name(Message),
-) -> Result(process.Pid, dynamic.Dynamic)
-
 /// Starts a new Franz client with the configured settings.
 ///
 /// The client will connect to the Kafka cluster, discover broker metadata,
@@ -1410,12 +1229,19 @@ fn do_start_client(
 ///   |> franz.start()
 /// ```
 pub fn start(config: ClientConfig) -> actor.StartResult(Client) {
-  let ffi_options = list.map(config.options, client_option_to_ffi)
-  case do_start_client(config.endpoints, ffi_options, config.name) {
+  let brod_options = list.map(config.options, client_option_to_brod)
+  case do_start_client(config.endpoints, brod_options, config.name) {
     Ok(pid) -> Ok(actor.Started(pid, Client(config.name)))
     Error(error) -> Error(actor.InitExited(process.Abnormal(error)))
   }
 }
+
+@external(erlang, "franz_ffi", "start_client")
+fn do_start_client(
+  endpoints: List(Endpoint),
+  options: List(BrodOption),
+  name: process.Name(Message),
+) -> Result(process.Pid, Dynamic)
 
 /// Creates a child specification for supervising the Franz client.
 ///
@@ -1573,10 +1399,13 @@ pub fn fetch(
   offset offset: Int,
   options options: List(FetchOption),
 ) -> Result(#(Int, KafkaMessage), FetchError) {
-  let ffi_options = list.map(options, fetch_option_to_ffi)
-  case do_fetch(client, topic, partition, offset, ffi_options) {
-    Ok(#(next_offset, raw_message_set)) ->
-      Ok(#(next_offset, convert_raw_message_set(raw_message_set)))
+  let brod_options = list.map(options, fetch_option_to_brod)
+  case do_fetch(client, topic, partition, offset, brod_options) {
+    Ok(#(request_offset, raw_message_set)) -> {
+      let #(message_set, next_offset) =
+        convert_raw_message_set(raw_message_set, request_offset)
+      Ok(#(next_offset, message_set))
+    }
     Error(err) -> Error(err)
   }
 }
@@ -1591,65 +1420,43 @@ fn do_fetch(
   topic: String,
   partition: Int,
   offset: Int,
-  options: List(FfiFetchOption),
+  options: List(BrodOption),
 ) -> Result(#(Int, RawMessageSet), FetchError)
 
-/// Convert raw FFI message set to proper Gleam KafkaMessageSet
-fn convert_raw_message_set(raw: RawMessageSet) -> KafkaMessage {
+/// Convert raw FFI message set to Gleam KafkaMessageSet and compute next offset in single pass
+fn convert_raw_message_set(
+  raw: RawMessageSet,
+  fallback_offset: Int,
+) -> #(KafkaMessage, Int) {
   let #(topic, partition, high_wm_offset, raw_messages) = raw
-  let messages = list.filter_map(raw_messages, convert_raw_message)
-  KafkaMessageSet(
-    topic: topic,
-    partition: partition,
-    high_wm_offset: high_wm_offset,
-    messages: messages,
-  )
-}
-
-/// Convert a raw brod kafka_message record to Gleam KafkaMessage
-/// brod format: {kafka_message, Offset, Key, Value, TsType, Ts, Headers}
-fn convert_raw_message(raw: Dynamic) -> Result(KafkaMessage, Nil) {
-  // Build a decoder for the kafka_message tuple
-  let message_decoder = {
-    use offset <- decode.subfield([1], decode.int)
-    use key <- decode.subfield([2], decode.bit_array)
-    use value <- decode.subfield([3], decode.bit_array)
-    use ts_type_dyn <- decode.subfield([4], decode.dynamic)
-    use ts_ms <- decode.subfield([5], decode.int)
-    use headers_dyn <- decode.subfield([6], decode.dynamic)
-
-    let timestamp_type = convert_timestamp_type(ts_type_dyn)
-    let ts = timestamp_from_ms(ts_ms)
-    let headers = convert_headers(headers_dyn)
-
-    decode.success(KafkaMessage(
-      offset: offset,
-      key: key,
-      value: value,
-      timestamp_type: timestamp_type,
-      timestamp: ts,
-      headers: headers,
-    ))
-  }
-
-  case decode.run(raw, message_decoder) {
-    Ok(msg) -> Ok(msg)
-    Error(_) -> Error(Nil)
-  }
+  // Single pass: decode messages and track last offset
+  let #(messages_reversed, last_offset) =
+    list.fold(raw_messages, #([], fallback_offset), fn(acc, raw_msg) {
+      let #(msgs, current_offset) = acc
+      case decode.run(raw_msg, decode_single_message()) {
+        Ok(KafkaMessage(offset: msg_offset, ..) as msg) ->
+          #([msg, ..msgs], msg_offset + 1)
+        Ok(KafkaMessageSet(..) as msg) -> #([msg, ..msgs], current_offset)
+        Error(_) -> acc
+      }
+    })
+  let message_set =
+    KafkaMessageSet(
+      topic: topic,
+      partition: partition,
+      high_wm_offset: high_wm_offset,
+      messages: list.reverse(messages_reversed),
+    )
+  #(message_set, last_offset)
 }
 
 /// Convert raw timestamp type atom to Gleam TimestampType
-fn convert_timestamp_type(raw: Dynamic) -> TimestampType {
-  case decode.run(raw, atom.decoder()) {
-    Ok(a) -> {
-      let name = atom.to_string(a)
-      case name {
-        "create" -> Create
-        "append" -> Append
-        _ -> Undefined
-      }
-    }
-    Error(_) -> Undefined
+fn convert_timestamp_type(atom: atom.Atom) -> TimestampType {
+  let name = atom.to_string(atom)
+  case name {
+    "create" -> Create
+    "append" -> Append
+    _ -> Undefined
   }
 }
 
@@ -1660,21 +1467,13 @@ fn timestamp_from_ms(ms: Int) -> Timestamp {
   timestamp.from_unix_seconds_and_nanoseconds(seconds, nanos)
 }
 
-/// Convert raw headers to list of string tuples
-fn convert_headers(raw: Dynamic) -> List(#(String, String)) {
-  let header_decoder =
-    decode.list(
-      decode.at([0], decode.string)
-      |> decode.then(fn(key) {
-        decode.at([1], decode.string)
-        |> decode.then(fn(value) { decode.success(#(key, value)) })
-      }),
-    )
-
-  case decode.run(raw, header_decoder) {
-    Ok(headers) -> headers
-    Error(_) -> []
-  }
+/// Convert raw headers to list of key-value tuples
+fn headers_decoder() -> decode.Decoder(List(#(String, BitArray))) {
+  decode.list({
+    use key <- decode.then(decode.at([0], decode.string))
+    use value <- decode.then(decode.at([1], decode.bit_array))
+    decode.success(#(key, value))
+  })
 }
 
 // =============================================================================
@@ -1707,7 +1506,7 @@ pub fn default_producer(client: Client, topic: String) -> Producer {
 fn do_start_producer(
   client: Client,
   topic: String,
-  options: List(FfiProducerOption),
+  options: List(BrodOption),
 ) -> Result(Nil, ProduceError)
 
 /// Starts the producer with the configured settings.
@@ -1718,8 +1517,8 @@ fn do_start_producer(
 /// The producer will maintain connections to the partition leaders and
 /// handle leader changes automatically.
 pub fn start_producer(config: Producer) -> Result(Nil, ProduceError) {
-  let ffi_options = list.map(config.options, producer_option_to_ffi)
-  do_start_producer(config.client, config.topic, ffi_options)
+  let brod_options = list.map(config.options, producer_option_to_brod)
+  do_start_producer(config.client, config.topic, brod_options)
 }
 
 // =============================================================================
@@ -1744,7 +1543,7 @@ pub fn produce(
   key key: BitArray,
   value value: ProduceValue,
 ) -> Result(Nil, ProduceError) {
-  do_produce_no_ack(client, topic, partition, key, produce_value_to_ffi(value))
+  do_produce_no_ack(client, topic, partition, key, produce_value_to_brod(value))
 }
 
 @external(erlang, "franz_ffi", "produce_no_ack")
@@ -1753,7 +1552,7 @@ fn do_produce_no_ack(
   topic: String,
   partition: PartitionSelector,
   key: BitArray,
-  value: FfiProduceValue,
+  value: BrodValue,
 ) -> Result(Nil, ProduceError)
 
 /// Produces a message and waits for broker acknowledgement.
@@ -1783,7 +1582,7 @@ pub fn produce_sync(
   key key: BitArray,
   value value: ProduceValue,
 ) -> Result(Nil, ProduceError) {
-  do_produce_sync(client, topic, partition, key, produce_value_to_ffi(value))
+  do_produce_sync(client, topic, partition, key, produce_value_to_brod(value))
 }
 
 @external(erlang, "franz_ffi", "produce_sync")
@@ -1792,7 +1591,7 @@ fn do_produce_sync(
   topic: String,
   partition: PartitionSelector,
   key: BitArray,
-  value: FfiProduceValue,
+  value: BrodValue,
 ) -> Result(Nil, ProduceError)
 
 /// Produces a message synchronously and returns the assigned offset.
@@ -1817,7 +1616,7 @@ pub fn produce_sync_offset(
     topic,
     partition,
     key,
-    produce_value_to_ffi(value),
+    produce_value_to_brod(value),
   )
 }
 
@@ -1827,7 +1626,7 @@ fn do_produce_sync_offset(
   topic: String,
   partition: PartitionSelector,
   key: BitArray,
-  value: FfiProduceValue,
+  value: BrodValue,
 ) -> Result(Int, ProduceError)
 
 /// Wrapper type for partition numbers in async produce callbacks.
@@ -1875,7 +1674,7 @@ pub fn produce_async(
     topic,
     partition,
     key,
-    produce_value_to_ffi(value),
+    produce_value_to_brod(value),
     callback,
   )
 }
@@ -1886,7 +1685,7 @@ fn do_produce_cb(
   topic: String,
   partition: PartitionSelector,
   key: BitArray,
-  value: FfiProduceValue,
+  value: BrodValue,
   callback: fn(Partition, Offset) -> any,
 ) -> Result(PartitionSelector, ProduceError)
 
@@ -1968,19 +1767,19 @@ pub fn default_group_subscriber_config(
 }
 
 /// Internal helper to wrap user callback with GroupCallbackAction.
-@external(erlang, "franz_ffi", "ack")
-fn do_ack(state: state) -> GroupCallbackReturn
+@external(erlang, "franz_ffi", "group_ack")
+fn do_group_ack(state: state) -> GroupCallbackReturn
 
-@external(erlang, "franz_ffi", "commit")
-fn do_commit(state: state) -> GroupCallbackReturn
+@external(erlang, "franz_ffi", "group_commit")
+fn do_group_commit(state: state) -> GroupCallbackReturn
 
 fn wrap_group_callback(
   user_callback: fn(KafkaMessage, state) -> GroupCallbackAction(state),
 ) -> fn(KafkaMessage, state) -> GroupCallbackReturn {
   fn(msg, state) {
     case user_callback(msg, state) {
-      GroupAck(new_state) -> do_ack(new_state)
-      GroupCommit(new_state) -> do_commit(new_state)
+      GroupAck(new_state) -> do_group_ack(new_state)
+      GroupCommit(new_state) -> do_group_commit(new_state)
     }
   }
 }
@@ -1990,12 +1789,12 @@ fn do_start_group_subscriber(
   client: Client,
   group_id: String,
   topics: List(String),
-  consumer_options: List(FfiConsumerOption),
-  group_options: List(FfiGroupOption),
+  consumer_options: List(BrodOption),
+  group_options: List(BrodOption),
   message_type: MessageType,
   callback: fn(KafkaMessage, state) -> GroupCallbackReturn,
   init_state: state,
-) -> Result(process.Pid, dynamic.Dynamic)
+) -> Result(process.Pid, Dynamic)
 
 /// Starts the group subscriber and begins consuming messages.
 ///
@@ -2008,24 +1807,55 @@ fn do_start_group_subscriber(
 pub fn start_group_subscriber(
   config: GroupSubscriberConfig(state),
 ) -> actor.StartResult(GroupSubscriber) {
-  let ffi_consumer_options =
-    list.map(config.consumer_options, consumer_option_to_ffi)
-  let ffi_group_options = list.map(config.group_options, group_option_to_ffi)
+  let brod_consumer_options =
+    list.map(config.consumer_options, consumer_option_to_brod)
+  let brod_group_options = list.map(config.group_options, group_option_to_brod)
   case
     do_start_group_subscriber(
       config.client,
       config.group_id,
       config.topics,
-      ffi_consumer_options,
-      ffi_group_options,
+      brod_consumer_options,
+      brod_group_options,
       config.message_type,
       wrap_group_callback(config.callback),
       config.init_state,
     )
   {
-    Ok(pid) -> Ok(actor.Started(pid, GroupSubscriber(config.name)))
+    Ok(pid) -> {
+      case process.register(pid, config.name) {
+        Error(Nil) -> {
+          let _ = do_stop_group_subscriber(pid)
+          Error(
+            actor.InitExited(
+              process.Abnormal(dynamic.string("Name already registered")),
+            ),
+          )
+        }
+        Ok(_) -> Ok(actor.Started(pid, GroupSubscriber(pid, config.name)))
+      }
+    }
     Error(error) -> Error(actor.InitExited(process.Abnormal(error)))
   }
+}
+
+@external(erlang, "franz_ffi", "stop_group_subscriber")
+fn do_stop_group_subscriber(pid: process.Pid) -> Result(Nil, GroupError)
+
+/// Stops a running group subscriber.
+///
+/// This will gracefully shut down the subscriber, leaving the consumer group
+/// and committing any pending offsets (if auto-commit is enabled).
+///
+/// ```gleam
+/// let assert Ok(_) = franz.group_subscriber_stop(subscriber)
+/// ```
+pub fn group_subscriber_stop(
+  subscriber: GroupSubscriber,
+) -> Result(Nil, GroupError) {
+  let GroupSubscriber(pid, name) = subscriber
+  let _ = process.unregister(name)
+  do_stop_group_subscriber(pid)
 }
 
 /// Creates a child specification for supervising the group subscriber.
@@ -2122,17 +1952,71 @@ pub fn default_topic_subscriber(
 }
 
 /// Internal helper to wrap user callback with TopicCallbackAction.
-@external(erlang, "franz_ffi", "ack")
+@external(erlang, "franz_ffi", "topic_ack")
 fn do_topic_ack(state: state) -> TopicSubscriberCallbackReturn
 
 fn wrap_topic_callback(
   user_callback: fn(Int, KafkaMessage, state) -> TopicCallbackAction(state),
-) -> fn(Int, KafkaMessage, state) -> TopicSubscriberCallbackReturn {
-  fn(partition, msg, state) {
+) -> fn(Int, Dynamic, state) -> TopicSubscriberCallbackReturn {
+  fn(partition, raw_msg, state) {
+    // Convert raw brod kafka_message to proper Gleam KafkaMessage
+    let msg = convert_subscriber_message(raw_msg)
     case user_callback(partition, msg, state) {
       TopicAck(new_state) -> do_topic_ack(new_state)
     }
   }
+}
+
+/// Convert raw brod message (single or batch) to proper Gleam KafkaMessage
+fn convert_subscriber_message(raw: Dynamic) -> KafkaMessage {
+  let decoder = decode.one_of(decode_single_message(), [decode_message_set()])
+  let assert Ok(msg) = decode.run(raw, decoder)
+    as "Failed to decode Kafka message: unexpected format from brod"
+  msg
+}
+
+/// Decode a single kafka_message record
+/// brod format: {kafka_message, Offset, Key, Value, TsType, Ts, Headers}
+/// Tuple indices: 0=tag, 1=offset, 2=key, 3=value, 4=ts_type, 5=ts, 6=headers
+fn decode_single_message() {
+  use offset <- decode.subfield([1], decode.int)
+  use key <- decode.subfield([2], decode.bit_array)
+  use value <- decode.subfield([3], decode.bit_array)
+  use timestamp_type <- decode.subfield(
+    [4],
+    atom.decoder() |> decode.map(convert_timestamp_type),
+  )
+  use timestamp <- decode.subfield(
+    [5],
+    decode.int |> decode.map(timestamp_from_ms),
+  )
+  use headers <- decode.subfield([6], headers_decoder())
+
+  decode.success(KafkaMessage(
+    offset:,
+    key:,
+    value:,
+    timestamp_type:,
+    timestamp:,
+    headers:,
+  ))
+}
+
+/// Decode a message_set record (batch)
+/// brod format: {kafka_message_set, Topic, Partition, HighWmOffset, Messages}
+/// Tuple indices: 0=tag, 1=topic, 2=partition, 3=high_wm_offset, 4=messages
+fn decode_message_set() {
+  use topic <- decode.subfield([1], decode.string)
+  use partition <- decode.subfield([2], decode.int)
+  use high_wm_offset <- decode.subfield([3], decode.int)
+  use messages <- decode.subfield([4], decode.list(decode_single_message()))
+
+  decode.success(KafkaMessageSet(
+    topic: topic,
+    partition: partition,
+    high_wm_offset: high_wm_offset,
+    messages: messages,
+  ))
 }
 
 @external(erlang, "franz_ffi", "start_topic_subscriber")
@@ -2140,12 +2024,12 @@ fn do_start_topic_subscriber(
   client: Client,
   topic: String,
   partitions: SubscribePartitions,
-  consumer_options: List(FfiConsumerOption),
+  consumer_options: List(BrodOption),
   committed_offsets: List(#(Int, Int)),
   message_type: MessageType,
-  callback: fn(Int, KafkaMessage, state) -> TopicSubscriberCallbackReturn,
+  callback: fn(Int, Dynamic, state) -> TopicSubscriberCallbackReturn,
   init_state: state,
-) -> Result(process.Pid, dynamic.Dynamic)
+) -> Result(process.Pid, Dynamic)
 
 /// Starts the topic subscriber and begins consuming messages.
 ///
@@ -2158,23 +2042,52 @@ fn do_start_topic_subscriber(
 pub fn start_topic_subscriber(
   builder: TopicSubscriberConfig(state),
 ) -> actor.StartResult(TopicSubscriber) {
-  let ffi_consumer_options =
-    list.map(builder.consumer_options, consumer_option_to_ffi)
+  let brod_consumer_options =
+    list.map(builder.consumer_options, consumer_option_to_brod)
   case
     do_start_topic_subscriber(
       builder.client,
       builder.topic,
       builder.partitions,
-      ffi_consumer_options,
+      brod_consumer_options,
       builder.committed_offsets,
       builder.message_type,
       wrap_topic_callback(builder.callback),
       builder.initial_state,
     )
   {
-    Ok(pid) -> Ok(actor.Started(pid, TopicSubscriber(builder.name)))
+    Ok(pid) -> {
+      case process.register(pid, builder.name) {
+        Error(Nil) -> {
+          let _ = do_stop_topic_subscriber(pid)
+          Error(
+            actor.InitExited(
+              process.Abnormal(dynamic.string("Name already registered")),
+            ),
+          )
+        }
+        Ok(_) -> Ok(actor.Started(pid, TopicSubscriber(pid, builder.name)))
+      }
+    }
     Error(error) -> Error(actor.InitExited(process.Abnormal(error)))
   }
+}
+
+@external(erlang, "franz_ffi", "stop_topic_subscriber")
+fn do_stop_topic_subscriber(pid: process.Pid) -> Result(Nil, Nil)
+
+/// Stops a running topic subscriber.
+///
+/// This will gracefully shut down the subscriber and stop consuming messages
+/// from the topic partitions.
+///
+/// ```gleam
+/// let assert Ok(_) = franz.topic_subscriber_stop(subscriber)
+/// ```
+pub fn topic_subscriber_stop(subscriber: TopicSubscriber) -> Result(Nil, Nil) {
+  let TopicSubscriber(pid, name) = subscriber
+  let _ = process.unregister(name)
+  do_stop_topic_subscriber(pid)
 }
 
 /// Creates a child specification for supervising the topic subscriber.
@@ -2216,4 +2129,262 @@ fn duration_to_seconds(d: Duration) -> Int {
 fn timestamp_to_ms(ts: Timestamp) -> Int {
   let #(seconds, nanos) = timestamp.to_unix_seconds_and_nanoseconds(ts)
   seconds * 1000 + nanos / 1_000_000
+}
+
+// =============================================================================
+// BROD FFI CONVERSION UTILITIES
+// =============================================================================
+
+// BrodOption is an opaque type representing Erlang option tuples like {key, value}
+type BrodOption
+
+/// Coerces any value to BrodOption - this is safe because BrodOption is just
+/// a type-level marker and at runtime these are regular Erlang terms.
+@external(erlang, "gleam@function", "identity")
+fn to_brod_option(value: a) -> BrodOption
+
+// BrodValue is an opaque type representing the Erlang map #{value => ..., headers => ..., ts => ...}
+type BrodValue
+
+/// Creates a brod-compatible value map without timestamp.
+@external(erlang, "franz_ffi", "make_value")
+fn make_value(value: BitArray, headers: List(#(String, BitArray))) -> BrodValue
+
+/// Creates a brod-compatible value map with timestamp in milliseconds.
+@external(erlang, "franz_ffi", "make_value_with_ts")
+fn make_value_with_ts(
+  value: BitArray,
+  ts_ms: Int,
+  headers: List(#(String, BitArray)),
+) -> BrodValue
+
+fn produce_value_to_brod(val: ProduceValue) -> BrodValue {
+  case val {
+    Value(v, h) -> make_value(v, h)
+    ValueWithTimestamp(v, ts, h) ->
+      make_value_with_ts(v, timestamp_to_ms(ts), h)
+  }
+}
+
+fn client_option_to_brod(opt: ClientOption) -> BrodOption {
+  case opt {
+    Sasl(creds) -> to_brod_option(#(atom.create("sasl"), sasl_to_brod(creds)))
+    Ssl(ssl) -> to_brod_option(#(atom.create("ssl"), ssl_to_brod(ssl)))
+    ConnectTimeout(d) ->
+      to_brod_option(#(atom.create("connect_timeout"), duration_to_ms(d)))
+    RequestTimeout(d) ->
+      to_brod_option(#(atom.create("request_timeout"), duration_to_ms(d)))
+    RestartDelay(d) ->
+      to_brod_option(#(
+        atom.create("restart_delay_seconds"),
+        duration_to_seconds(d),
+      ))
+    ReconnectCoolDown(d) ->
+      to_brod_option(#(
+        atom.create("reconnect_cool_down_seconds"),
+        duration_to_seconds(d),
+      ))
+    AllowTopicAutoCreation(b) ->
+      to_brod_option(#(atom.create("allow_topic_auto_creation"), b))
+    AutoStartProducers(b) ->
+      to_brod_option(#(atom.create("auto_start_producers"), b))
+    DefaultProducerConfig(opts) ->
+      to_brod_option(#(
+        atom.create("default_producer_config"),
+        list.map(opts, producer_option_to_brod),
+      ))
+
+    UnknownTopicCacheTtl(d) ->
+      to_brod_option(#(
+        atom.create("topic_metadata_refresh_interval_seconds"),
+        duration_to_seconds(d),
+      ))
+  }
+}
+
+fn sasl_to_brod(creds: SaslCredentials) -> #(atom.Atom, String, String) {
+  let SaslCredentials(mechanism, username, password) = creds
+  let mech_atom = case mechanism {
+    Plain -> atom.create("plain")
+    ScramSha256 -> atom.create("scram_sha_256")
+    ScramSha512 -> atom.create("scram_sha_512")
+  }
+  #(mech_atom, username, password)
+}
+
+fn ssl_to_brod(ssl: SslOption) -> BrodOption {
+  case ssl {
+    SslEnabled -> to_brod_option(True)
+    SslWithOptions(cacertfile, certfile, keyfile, verify) -> {
+      let verify_atom = case verify {
+        VerifyPeer -> atom.create("verify_peer")
+        VerifyNone -> atom.create("verify_none")
+      }
+      let options = [to_brod_option(#(atom.create("verify"), verify_atom))]
+      let options = case keyfile {
+        option.Some(path) -> [
+          to_brod_option(#(atom.create("keyfile"), path)),
+          ..options
+        ]
+        option.None -> options
+      }
+      let options = case certfile {
+        option.Some(path) -> [
+          to_brod_option(#(atom.create("certfile"), path)),
+          ..options
+        ]
+        option.None -> options
+      }
+      let options = case cacertfile {
+        option.Some(path) -> [
+          to_brod_option(#(atom.create("cacertfile"), path)),
+          ..options
+        ]
+        option.None -> options
+      }
+      to_brod_option(options)
+    }
+  }
+}
+
+fn compression_to_brod(c: Compression) -> atom.Atom {
+  case c {
+    NoCompression -> atom.create("no_compression")
+    Gzip -> atom.create("gzip")
+    Snappy -> atom.create("snappy")
+    Lz4 -> atom.create("lz4")
+  }
+}
+
+fn producer_option_to_brod(opt: ProducerOption) -> BrodOption {
+  case opt {
+    RequiredAcks(n) -> to_brod_option(#(atom.create("required_acks"), n))
+    AckTimeout(d) ->
+      to_brod_option(#(atom.create("ack_timeout"), duration_to_ms(d)))
+    PartitionBufferLimit(n) ->
+      to_brod_option(#(atom.create("partition_buffer_limit"), n))
+    PartitionOnWireLimit(n) ->
+      to_brod_option(#(atom.create("partition_onwire_limit"), n))
+    MaxBatchSize(n) -> to_brod_option(#(atom.create("max_batch_size"), n))
+    MaxRetries(n) -> to_brod_option(#(atom.create("max_retries"), n))
+    RetryBackoff(d) ->
+      to_brod_option(#(atom.create("retry_backoff_ms"), duration_to_ms(d)))
+    Compression(c) ->
+      to_brod_option(#(atom.create("compression"), compression_to_brod(c)))
+    MaxLinger(d) ->
+      to_brod_option(#(atom.create("max_linger_ms"), duration_to_ms(d)))
+    MaxLingerCount(n) -> to_brod_option(#(atom.create("max_linger_count"), n))
+  }
+}
+
+fn starting_offset_to_brod(offset: StartingOffset) -> BrodOption {
+  case offset {
+    Latest -> to_brod_option(atom.create("latest"))
+    Earliest -> to_brod_option(atom.create("earliest"))
+    AtTimestamp(ts) -> to_brod_option(timestamp_to_ms(ts))
+    AtOffset(n) -> to_brod_option(n)
+  }
+}
+
+fn offset_reset_policy_to_brod(policy: OffsetResetPolicy) -> atom.Atom {
+  case policy {
+    ResetBySubscriber -> atom.create("reset_by_subscriber")
+    ResetToEarliest -> atom.create("reset_to_earliest")
+    ResetToLatest -> atom.create("reset_to_latest")
+  }
+}
+
+fn isolation_level_to_brod(level: IsolationLevel) -> atom.Atom {
+  case level {
+    ReadCommitted -> atom.create("read_committed")
+    ReadUncommitted -> atom.create("read_uncommitted")
+  }
+}
+
+fn consumer_option_to_brod(opt: ConsumerOption) -> BrodOption {
+  case opt {
+    BeginOffset(offset) ->
+      to_brod_option(#(
+        atom.create("begin_offset"),
+        starting_offset_to_brod(offset),
+      ))
+
+    MinBytes(n) -> to_brod_option(#(atom.create("min_bytes"), n))
+    MaxBytes(n) -> to_brod_option(#(atom.create("max_bytes"), n))
+    MaxWaitTime(d) ->
+      to_brod_option(#(atom.create("max_wait_time"), duration_to_ms(d)))
+    SleepTimeout(d) ->
+      to_brod_option(#(atom.create("sleep_timeout"), duration_to_ms(d)))
+    PrefetchCount(n) -> to_brod_option(#(atom.create("prefetch_count"), n))
+    PrefetchBytes(n) -> to_brod_option(#(atom.create("prefetch_bytes"), n))
+    OffsetResetPolicy(p) ->
+      to_brod_option(#(
+        atom.create("offset_reset_policy"),
+        offset_reset_policy_to_brod(p),
+      ))
+    SizeStatWindow(n) -> to_brod_option(#(atom.create("size_stat_window"), n))
+    ConsumerIsolationLevel(l) ->
+      to_brod_option(#(
+        atom.create("isolation_level"),
+        isolation_level_to_brod(l),
+      ))
+    ShareLeaderConn(b) -> to_brod_option(#(atom.create("share_leader_conn"), b))
+  }
+}
+
+fn group_option_to_brod(opt: GroupOption) -> BrodOption {
+  case opt {
+    SessionTimeout(d) ->
+      to_brod_option(#(
+        atom.create("session_timeout_seconds"),
+        duration_to_seconds(d),
+      ))
+
+    RebalanceTimeout(d) ->
+      to_brod_option(#(
+        atom.create("rebalance_timeout_seconds"),
+        duration_to_seconds(d),
+      ))
+
+    HeartbeatRate(d) ->
+      to_brod_option(#(
+        atom.create("heartbeat_rate_seconds"),
+        duration_to_seconds(d),
+      ))
+
+    MaxRejoinAttempts(n) ->
+      to_brod_option(#(atom.create("max_rejoin_attempts"), n))
+
+    RejoinDelay(d) ->
+      to_brod_option(#(
+        atom.create("rejoin_delay_seconds"),
+        duration_to_seconds(d),
+      ))
+
+    OffsetCommitInterval(d) ->
+      to_brod_option(#(
+        atom.create("offset_commit_interval_seconds"),
+        duration_to_seconds(d),
+      ))
+
+    OffsetRetention(d) ->
+      to_brod_option(#(
+        atom.create("offset_retention_seconds"),
+        duration_to_seconds(d),
+      ))
+  }
+}
+
+fn fetch_option_to_brod(opt: FetchOption) -> BrodOption {
+  case opt {
+    FetchMaxWaitTime(d) ->
+      to_brod_option(#(atom.create("max_wait_time"), duration_to_ms(d)))
+    FetchMinBytes(n) -> to_brod_option(#(atom.create("min_bytes"), n))
+    FetchMaxBytes(n) -> to_brod_option(#(atom.create("max_bytes"), n))
+    FetchIsolationLevel(l) ->
+      to_brod_option(#(
+        atom.create("isolation_level"),
+        isolation_level_to_brod(l),
+      ))
+  }
 }

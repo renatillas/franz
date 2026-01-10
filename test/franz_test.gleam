@@ -492,7 +492,7 @@ pub fn produce_and_consume_with_headers_test() {
   process.sleep(100)
 
   // Produce message with headers
-  let headers = [#("trace-id", "abc123"), #("source", "test")]
+  let headers = [#("trace-id", <<"abc123">>), #("source", <<"test">>)]
   let assert Ok(Nil) =
     franz.produce_sync(
       client:,
@@ -510,7 +510,7 @@ pub fn produce_and_consume_with_headers_test() {
     ..,
   )) = process.receive(message_subject, 2000)
 
-  assert received_headers == [#("trace-id", "abc123"), #("source", "test")]
+  assert received_headers == [#("trace-id", <<"abc123">>), #("source", <<"test">>)]
 }
 
 // =============================================================================
@@ -1678,16 +1678,16 @@ pub fn produce_many_headers_test() {
 
   // Create 10 headers
   let headers = [
-    #("header-1", "value-1"),
-    #("header-2", "value-2"),
-    #("header-3", "value-3"),
-    #("header-4", "value-4"),
-    #("header-5", "value-5"),
-    #("trace-id", "abc-123-def-456"),
-    #("correlation-id", "corr-789"),
-    #("content-type", "application/json"),
-    #("version", "1.0.0"),
-    #("source", "test-suite"),
+    #("header-1", <<"value-1">>),
+    #("header-2", <<"value-2">>),
+    #("header-3", <<"value-3">>),
+    #("header-4", <<"value-4">>),
+    #("header-5", <<"value-5">>),
+    #("trace-id", <<"abc-123-def-456">>),
+    #("correlation-id", <<"corr-789">>),
+    #("content-type", <<"application/json">>),
+    #("version", <<"1.0.0">>),
+    #("source", <<"test-suite">>),
   ]
 
   let assert Ok(Nil) =
@@ -1706,9 +1706,9 @@ pub fn produce_many_headers_test() {
   assert list.length(received_headers) == 10
 
   // Verify specific headers
-  assert list.contains(received_headers, #("header-1", "value-1"))
-  assert list.contains(received_headers, #("trace-id", "abc-123-def-456"))
-  assert list.contains(received_headers, #("source", "test-suite"))
+  assert list.contains(received_headers, #("header-1", <<"value-1">>))
+  assert list.contains(received_headers, #("trace-id", <<"abc-123-def-456">>))
+  assert list.contains(received_headers, #("source", <<"test-suite">>))
   Nil
 }
 

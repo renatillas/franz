@@ -18,7 +18,5 @@ handle_message(Msg, {CbFun, CbState0}) ->
     {ok, commit, CbState} ->
       {ok, commit, {CbFun, CbState}};
     {ok, CbState} ->
-      {ok, {CbFun, CbState}};
-    Err ->
-      Err
+      {ok, {CbFun, CbState}}
   end.
