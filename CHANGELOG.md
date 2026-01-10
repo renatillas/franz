@@ -5,7 +5,100 @@ All notable changes to Franz will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - Unreleased
+## [4.0.0] - Unreleased
+
+### Changed
+
+- **BREAKING: Single-Module Architecture** - All types and functions consolidated into the main `franz` module
+  - Removed: `franz/consumer/config`, `franz/consumer/group_subscriber`, `franz/consumer/message_type`, `franz/consumer/topic_subscriber`
+  - Removed: `franz/producer`, `franz/producer/config`
+  - Removed: `franz/isolation_level`
+  - All types and functions are now accessed directly from `franz`
+  - Import simplification: `import franz` is now all you need
+
+- **BREAKING: New Builder Pattern API** - Complete API redesign with fluent builders
+  - Client: `franz.client()` → `franz.endpoints([...])` → `franz.name(name)` → `franz.start()`
+  - Producer: `franz.producer(client, topic)` → `franz.producer_option(...)` → `franz.producer_start()`
+  - Group subscriber: `franz.default_group_subscriber_config(...)` → `franz.start_group_subscriber()`
+  - Topic subscriber: `franz.default_topic_subscriber(...)` → `franz.start_topic_subscriber()`
+
+- **BREAKING: Error Type Reorganization** - Errors now organized by operation category
+  - `FranzError` replaced with 5 specific error types:
+  - `ClientError` - Connection and authentication failures
+  - `TopicError` - Topic administration errors (create, delete)
+  - `ProduceError` - Producer operation errors
+  - `FetchError` - Consumer/fetch operation errors
+  - `GroupError` - Consumer group errors
+
+- **BREAKING: Type Renames**
+  - `MessageSet` → `MessageBatch` (message type enum)
+  - `Message` → `SingleMessage` (message type enum)
+  - `Partition(n)` → `SinglePartition(n)` (partition selector)
+  - `Hash` → `Partitioner(Hash)` (partition selector)
+  - `Random` → `Partitioner(Random)` (partition selector)
+  - Callback actions now prefixed: `GroupAck`, `GroupCommit`, `TopicAck`
+
+- **BREAKING: Client Type Now Opaque** - `Client` is now an opaque type
+  - Use `franz.named(name)` to get a client reference from a registered name
+
+- **BREAKING: Consumer Option Renames**
+  - `IsolationLevel` → `ConsumerIsolationLevel` (to avoid ambiguity)
+  - Isolation values: `ReadCommitted`, `ReadUncommitted` (directly in franz module)
+
+- **BREAKING: Configuration Option Changes**
+  - Producer options now use `ProducerOption` type with variants like `RequiredAcks`, `AckTimeout`, `Compression`, etc.
+  - Consumer options now use `ConsumerOption` type with variants like `BeginOffset`, `MinBytes`, `MaxBytes`, etc.
+  - Group options now use `GroupOption` type with variants like `SessionTimeout`, `HeartbeatRate`, etc.
+
+- **BREAKING: Type-Safe Time Values with gleam_time**
+  - All duration/timeout parameters now use `gleam/time/duration.Duration` instead of raw integers
+  - All timestamp parameters now use `gleam/time/timestamp.Timestamp` instead of raw integers
+  - Client options renamed: `RestartDelaySeconds` → `RestartDelay`, `ReconnectCoolDownSeconds` → `ReconnectCoolDown`, `ConnectTimeout` and `RequestTimeout` now take `Duration`
+  - Producer options renamed: `AckTimeout` now takes `Duration`, `RetryBackoffMs` → `RetryBackoff`, `MaxLingerMs` → `MaxLinger`
+  - Consumer options: `MaxWaitTime` and `SleepTimeout` now take `Duration`
+  - Group options renamed: `SessionTimeoutSeconds` → `SessionTimeout`, `HeartbeatRateSeconds` → `HeartbeatRate`, `RebalanceTimeoutSeconds` → `RebalanceTimeout`, `RejoinDelaySeconds` → `RejoinDelay`, `OffsetCommitIntervalSeconds` → `OffsetCommitInterval`, `OffsetRetentionSeconds` → `OffsetRetention`
+  - Fetch options: `FetchMaxWaitTime` now takes `Duration`
+  - `StartingOffset.AtTimestamp` now takes `Timestamp` instead of `Int`
+  - `KafkaMessage.timestamp` is now `Timestamp` instead of `Int`
+  - `ProduceValue.ValueWithTimestamp` timestamp is now `Timestamp` instead of `Int`
+  - Function parameters: `create_topic` and `delete_topics` timeout is now `Duration`
+  - Example: `franz.option(franz.ConnectTimeout(duration.seconds(5)))`
+
+### Added
+
+- **gleam_time Dependency** - Added `gleam_time` for type-safe time handling
+
+- **Comprehensive Module Documentation** - Extensive module-level documentation with:
+  - Kafka concept explanations with links to official Kafka documentation
+  - Quick start examples for common use cases
+  - Producer semantics table (at-most-once, at-least-once)
+  - Partitioning strategies explanation
+  - Consumer offset management guide
+  - Transaction isolation levels
+  - Authentication configuration examples
+  - OTP supervision integration examples
+  - Compression options guide
+  - Error handling reference table
+
+- **HexDocs Organization** - Custom JavaScript for better documentation navigation
+  - Types and functions organized by category in sidebar
+  - Logical groupings: Client, Authentication, Topic Administration, Producer, Group Subscriber, Topic Subscriber, Consumer Configuration, Messages, Errors
+
+- **New Functions**
+  - `franz.named(name)` - Get client reference from registered process name
+  - `franz.stop(client)` - Stop a running client
+  - `franz.produce_sync_offset(...)` - Produce synchronously and return the assigned offset
+  - `franz.group_subscriber_stop(pid)` - Stop a group subscriber
+
+- **SSL/TLS Configuration** - Enhanced SSL options
+  - `SslEnabled` - Use system CA certificates
+  - `SslWithOptions` - Custom certificate configuration for mTLS
+  - `SslVerify` - Control certificate verification (VerifyPeer, VerifyNone)
+
+- **Fetch Options** - Low-level fetch configuration
+  - `FetchMaxWaitTime`, `FetchMinBytes`, `FetchMaxBytes`, `FetchIsolationLevel`
+
+## [3.0.0] - 2025-09-15
 
 ### Changed
 
@@ -190,6 +283,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Connection management
 - Foundation for producer and consumer APIs
 
+[4.0.0]: https://github.com/renatillas/franz/compare/v3.0.0...v4.0.0
+[3.0.0]: https://github.com/renatillas/franz/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/renatillas/franz/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/renatillas/franz/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/renatillas/franz/compare/v1.0.0...v1.0.1

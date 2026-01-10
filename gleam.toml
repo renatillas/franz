@@ -14,6 +14,7 @@ repository = { type = "github", user = "renatillas", repo = "franz" }
 
 [dependencies]
 gleam_stdlib = ">= 0.58.0 and < 2.0.0"
+gleam_time = ">= 1.0.0 and < 2.0.0"
 brod = ">= 4.3.3 and < 5.0.0"
 gleam_erlang = ">= 1.3.0 and < 2.0.0"
 gleam_otp = ">= 1.1.0 and < 2.0.0"

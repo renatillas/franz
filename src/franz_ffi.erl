@@ -191,26 +191,27 @@ topic_nil_result(Result) ->
 process_client_config(Options) ->
   lists:flatmap(fun process_client_option/1, Options).
 
-process_client_option({sasl, SaslConfig}) ->
+%% Client options - Gleam FfiClientOption constructors become ffi_* atoms
+process_client_option({ffi_sasl, SaslConfig}) ->
   [{sasl, process_sasl_config(SaslConfig)}];
-process_client_option({ssl, SslConfig}) ->
+process_client_option({ffi_ssl, SslConfig}) ->
   [{ssl, process_ssl_config(SslConfig)}];
-process_client_option({connect_timeout, Timeout}) ->
-  [{connect_timeout, Timeout}];
-process_client_option({request_timeout, Timeout}) ->
-  [{request_timeout, Timeout}];
-process_client_option({restart_delay_seconds, Seconds}) ->
+process_client_option({ffi_connect_timeout_ms, Ms}) ->
+  [{connect_timeout, Ms}];
+process_client_option({ffi_request_timeout_ms, Ms}) ->
+  [{request_timeout, Ms}];
+process_client_option({ffi_restart_delay_seconds, Seconds}) ->
   [{restart_delay_seconds, Seconds}];
-process_client_option({reconnect_cool_down_seconds, Seconds}) ->
+process_client_option({ffi_reconnect_cool_down_seconds, Seconds}) ->
   [{reconnect_cool_down_seconds, Seconds}];
-process_client_option({allow_topic_auto_creation, Bool}) ->
+process_client_option({ffi_allow_topic_auto_creation, Bool}) ->
   [{allow_topic_auto_creation, Bool}];
-process_client_option({auto_start_producers, Bool}) ->
+process_client_option({ffi_auto_start_producers, Bool}) ->
   [{auto_start_producers, Bool}];
-process_client_option({default_producer_config, Config}) ->
+process_client_option({ffi_default_producer_config, Config}) ->
   [{default_producer_config, process_producer_config(Config)}];
-process_client_option({unknown_topic_cache_ttl, Ttl}) ->
-  [{topic_metadata_refresh_interval_seconds, Ttl div 1000}];
+process_client_option({ffi_unknown_topic_cache_ttl_seconds, Seconds}) ->
+  [{topic_metadata_refresh_interval_seconds, Seconds}];
 process_client_option(Other) ->
   [Other].
 
@@ -250,10 +251,27 @@ add_verify_option(verify_none, Options) ->
 process_producer_config(Options) ->
   lists:map(fun process_producer_option/1, Options).
 
-process_producer_option({compression, Compression}) ->
-  {compression, process_compression(Compression)};
-process_producer_option({partition_on_wire_limit, Limit}) ->
+%% Producer options - Gleam FfiProducerOption constructors become ffi_* atoms
+process_producer_option({ffi_required_acks, Acks}) ->
+  {required_acks, Acks};
+process_producer_option({ffi_ack_timeout_ms, Ms}) ->
+  {ack_timeout, Ms};
+process_producer_option({ffi_partition_buffer_limit, Limit}) ->
+  {partition_buffer_limit, Limit};
+process_producer_option({ffi_partition_on_wire_limit, Limit}) ->
   {partition_onwire_limit, Limit};
+process_producer_option({ffi_max_batch_size, Size}) ->
+  {max_batch_size, Size};
+process_producer_option({ffi_max_retries, Retries}) ->
+  {max_retries, Retries};
+process_producer_option({ffi_retry_backoff_ms, Ms}) ->
+  {retry_backoff_ms, Ms};
+process_producer_option({ffi_compression, Compression}) ->
+  {compression, process_compression(Compression)};
+process_producer_option({ffi_max_linger_ms, Ms}) ->
+  {max_linger_ms, Ms};
+process_producer_option({ffi_max_linger_count, Count}) ->
+  {max_linger_count, Count};
 process_producer_option(Other) ->
   Other.
 
@@ -474,22 +492,40 @@ message_type(message_batch) ->
 consumer_config(Options) ->
   lists:map(fun process_consumer_option/1, Options).
 
-process_consumer_option({begin_offset, Offset}) ->
+%% Consumer options - Gleam FfiConsumerOption constructors become ffi_* atoms
+process_consumer_option({ffi_begin_offset, Offset}) ->
   {begin_offset, process_offset(Offset)};
-process_consumer_option({consumer_isolation_level, Level}) ->
-  {isolation_level, process_isolation_level(Level)};
-process_consumer_option({offset_reset_policy, Policy}) ->
+process_consumer_option({ffi_min_bytes, Bytes}) ->
+  {min_bytes, Bytes};
+process_consumer_option({ffi_max_bytes, Bytes}) ->
+  {max_bytes, Bytes};
+process_consumer_option({ffi_max_wait_time_ms, Ms}) ->
+  {max_wait_time, Ms};
+process_consumer_option({ffi_sleep_timeout_ms, Ms}) ->
+  {sleep_timeout, Ms};
+process_consumer_option({ffi_prefetch_count, Count}) ->
+  {prefetch_count, Count};
+process_consumer_option({ffi_prefetch_bytes, Bytes}) ->
+  {prefetch_bytes, Bytes};
+process_consumer_option({ffi_offset_reset_policy, Policy}) ->
   {offset_reset_policy, process_offset_reset_policy(Policy)};
+process_consumer_option({ffi_size_stat_window, Window}) ->
+  {size_stat_window, Window};
+process_consumer_option({ffi_consumer_isolation_level, Level}) ->
+  {isolation_level, process_isolation_level(Level)};
+process_consumer_option({ffi_share_leader_conn, Bool}) ->
+  {share_leader_conn, Bool};
 process_consumer_option(Other) ->
   Other.
 
-process_offset(latest) ->
+%% Offset values - Gleam FfiStartingOffset constructors become ffi_* atoms
+process_offset(ffi_latest) ->
   latest;
-process_offset(earliest) ->
+process_offset(ffi_earliest) ->
   earliest;
-process_offset({at_timestamp, Timestamp}) ->
-  Timestamp;
-process_offset({at_offset, Offset}) ->
+process_offset({ffi_at_timestamp_ms, Ms}) ->
+  Ms;
+process_offset({ffi_at_offset, Offset}) ->
   Offset.
 
 process_isolation_level(read_committed) ->
@@ -513,8 +549,15 @@ fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
   {client, ClientName} = Client,
   ProcessedOptions = process_fetch_options(OffsetOptions),
   case brod:fetch(ClientName, Topic, Partition, Offset, ProcessedOptions) of
-    {ok, Result} ->
-      {ok, Result};
+    {ok, {HighWaterOffset, Messages}} ->
+      %% Return raw data - conversion happens in Gleam
+      LastOffset = case Messages of
+        [] -> Offset;
+        _ ->
+          LastMsg = lists:last(Messages),
+          element(2, LastMsg) + 1  % offset is the 2nd element in kafka_message record
+      end,
+      {ok, {LastOffset, {Topic, Partition, HighWaterOffset, Messages}}};
     {error, Reason} ->
       {error, map_fetch_error(Reason)}
   end.
@@ -522,21 +565,23 @@ fetch(Client, Topic, Partition, Offset, OffsetOptions) ->
 process_fetch_options(Options) ->
   lists:foldl(fun process_fetch_option/2, #{}, Options).
 
-process_fetch_option({fetch_max_wait_time, Time}, Acc) ->
-  Acc#{max_wait_time => Time};
-process_fetch_option({fetch_min_bytes, Bytes}, Acc) ->
+%% Fetch options - Gleam FfiFetchOption constructors become ffi_* atoms
+process_fetch_option({ffi_fetch_max_wait_time_ms, Ms}, Acc) ->
+  Acc#{max_wait_time => Ms};
+process_fetch_option({ffi_fetch_min_bytes, Bytes}, Acc) ->
   Acc#{min_bytes => Bytes};
-process_fetch_option({fetch_max_bytes, Bytes}, Acc) ->
+process_fetch_option({ffi_fetch_max_bytes, Bytes}, Acc) ->
   Acc#{max_bytes => Bytes};
-process_fetch_option({fetch_isolation_level, Level}, Acc) ->
+process_fetch_option({ffi_fetch_isolation_level, Level}, Acc) ->
   Acc#{isolation_level => process_isolation_level(Level)}.
 
+%% Value - Gleam FfiProduceValue constructors become ffi_* atoms
 value(Value) ->
   case Value of
-    {value, V, H} ->
+    {ffi_value, V, H} ->
       #{value => V, headers => H};
-    {value_with_timestamp, V, Ts, H} ->
-      #{ts => Ts,
+    {ffi_value_with_timestamp_ms, V, TsMs, H} ->
+      #{ts => TsMs,
         value => V,
         headers => H}
   end.
@@ -580,19 +625,20 @@ start_group_subscriber(Client,
 process_group_config(Options) ->
   lists:map(fun process_group_option/1, Options).
 
-process_group_option({session_timeout_seconds, Seconds}) ->
+%% Group options - Gleam FfiGroupOption constructors become ffi_* atoms
+process_group_option({ffi_session_timeout_seconds, Seconds}) ->
   {session_timeout_seconds, Seconds};
-process_group_option({rebalance_timeout_seconds, Seconds}) ->
+process_group_option({ffi_rebalance_timeout_seconds, Seconds}) ->
   {rebalance_timeout_seconds, Seconds};
-process_group_option({heartbeat_rate_seconds, Seconds}) ->
+process_group_option({ffi_heartbeat_rate_seconds, Seconds}) ->
   {heartbeat_rate_seconds, Seconds};
-process_group_option({max_rejoin_attempts, Attempts}) ->
+process_group_option({ffi_max_rejoin_attempts, Attempts}) ->
   {max_rejoin_attempts, Attempts};
-process_group_option({rejoin_delay_seconds, Seconds}) ->
+process_group_option({ffi_rejoin_delay_seconds, Seconds}) ->
   {rejoin_delay_seconds, Seconds};
-process_group_option({offset_commit_interval_seconds, Seconds}) ->
+process_group_option({ffi_offset_commit_interval_seconds, Seconds}) ->
   {offset_commit_interval_seconds, Seconds};
-process_group_option({offset_retention_seconds, Seconds}) ->
+process_group_option({ffi_offset_retention_seconds, Seconds}) ->
   {offset_retention_seconds, Seconds};
 process_group_option(Other) ->
   Other.

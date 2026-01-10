@@ -34,6 +34,7 @@
 import franz
 import gleam/erlang/process
 import gleam/result
+import gleam/time/duration
 
 // =============================================================================
 // TopicError Tests
@@ -46,7 +47,11 @@ pub fn topic_already_exists_test() {
 
   // Clean up first
   let _ =
-    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+    franz.delete_topics(
+      endpoints: [endpoint],
+      names: [topic],
+      timeout: duration.seconds(5),
+    )
   process.sleep(500)
 
   // Create topic first time - should succeed
@@ -57,7 +62,7 @@ pub fn topic_already_exists_test() {
       partitions: 1,
       replication_factor: 1,
       configs: [],
-      timeout_ms: 5000,
+      timeout: duration.seconds(5),
     )
 
   // Try to create the same topic again - should fail with TopicAlreadyExists
@@ -68,11 +73,15 @@ pub fn topic_already_exists_test() {
       partitions: 1,
       replication_factor: 1,
       configs: [],
-      timeout_ms: 5000,
+      timeout: duration.seconds(5),
     )
 
   // Cleanup
-  franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+  franz.delete_topics(
+    endpoints: [endpoint],
+    names: [topic],
+    timeout: duration.seconds(5),
+  )
   |> result.unwrap(Nil)
 }
 
@@ -88,7 +97,7 @@ pub fn topic_invalid_partitions_test() {
       partitions: 0,
       replication_factor: 1,
       configs: [],
-      timeout_ms: 5000,
+      timeout: duration.seconds(5),
     )
 }
 
@@ -105,7 +114,7 @@ pub fn topic_invalid_replication_factor_test() {
       partitions: 1,
       replication_factor: 10,
       configs: [],
-      timeout_ms: 5000,
+      timeout: duration.seconds(5),
     )
 }
 
@@ -120,9 +129,8 @@ pub fn producer_not_found_test() {
   let topic = "error_test_producer_not_found_topic"
 
   let assert Ok(_) =
-    franz.client()
+    franz.default_client(name)
     |> franz.endpoints([endpoint])
-    |> franz.name(name)
     |> franz.option(franz.AutoStartProducers(False))
     |> franz.start()
 
@@ -152,9 +160,8 @@ pub fn fetch_topic_not_found_test() {
   let non_existent_topic = "error_test_nonexistent_topic"
 
   let assert Ok(_) =
-    franz.client()
+    franz.default_client(name)
     |> franz.endpoints([endpoint])
-    |> franz.name(name)
     |> franz.option(franz.AllowTopicAutoCreation(False))
     |> franz.start()
 
@@ -181,7 +188,11 @@ pub fn fetch_offset_out_of_range_test() {
 
   // Clean up and create topic
   let _ =
-    franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+    franz.delete_topics(
+      endpoints: [endpoint],
+      names: [topic],
+      timeout: duration.seconds(5),
+    )
   process.sleep(500)
 
   let assert Ok(Nil) =
@@ -191,13 +202,12 @@ pub fn fetch_offset_out_of_range_test() {
       partitions: 1,
       replication_factor: 1,
       configs: [],
-      timeout_ms: 5000,
+      timeout: duration.seconds(5),
     )
 
   let assert Ok(_) =
-    franz.client()
+    franz.default_client(name)
     |> franz.endpoints([endpoint])
-    |> franz.name(name)
     |> franz.start()
 
   let client = franz.named(name)
@@ -218,7 +228,11 @@ pub fn fetch_offset_out_of_range_test() {
   franz.stop(client)
 
   // Cleanup
-  franz.delete_topics(endpoints: [endpoint], names: [topic], timeout_ms: 5000)
+  franz.delete_topics(
+    endpoints: [endpoint],
+    names: [topic],
+    timeout: duration.seconds(5),
+  )
   |> result.unwrap(Nil)
 }
 // =============================================================================
