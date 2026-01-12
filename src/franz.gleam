@@ -2,43 +2,23 @@
 //// const docs = [
 ////   {
 ////     header: "Client",
-////     types: ["Client", "ClientBuilder", "ClientOption", "Endpoint", "Message"],
-////     functions: ["client", "endpoint", "endpoints", "name", "option", "sasl", "ssl", "start", "supervised", "named", "stop"]
+////     types: ["Client", "ClientConfig", "ClientOption", "Endpoint", "Message", "SaslMechanism", "SaslCredentials", "SslOption", "SslVerify"],
+////     functions: ["default_client", "endpoint", "endpoints", "option", "sasl", "ssl", "start", "supervised", "named", "stop"]
 ////   },
 ////   {
-////     header: "Authentication",
-////     types: ["SaslMechanism", "SaslCredentials", "SslOption", "SslVerify"],
-////     functions: []
-////   },
-////   {
-////     header: "Topic Administration",
-////     types: ["ConsumerGroup"],
-////     functions: ["create_topic", "delete_topics", "list_groups", "fetch"]
+////     header: "Administration",
+////     types: [],
+////     functions: ["create_topic", "delete_topics", "list_groups"]
 ////   },
 ////   {
 ////     header: "Producer",
-////     types: ["ProducerBuilder", "ProducerOption", "PartitionSelector", "Partitioner", "ProduceValue", "Compression", "Partition", "Offset"],
-////     functions: ["producer", "producer_option", "producer_start", "produce", "produce_sync", "produce_sync_offset", "produce_async"]
+////     types: ["Producer", "ProducerOption", "PartitionSelector", "Partitioner", "ProduceValue", "Compression", "Partition", "Offset"],
+////     functions: ["default_producer", "start_producer", "produce", "produce_sync", "produce_sync_offset", "produce_async"]
 ////   },
 ////   {
-////     header: "Group Subscriber",
-////     types: ["GroupSubscriber", "GroupSubscriberBuilder", "GroupSubscriberMessage", "GroupCallbackAction", "GroupOption"],
-////     functions: ["default_group_subscriber_config", "start_group_subscriber", "group_subscriber_supervised", "group_subscriber_stop"]
-////   },
-////   {
-////     header: "Topic Subscriber",
-////     types: ["TopicSubscriber", "TopicSubscriberConfig", "TopicSubscriberMessage", "TopicCallbackAction", "SubscribePartitions"],
-////     functions: ["default_topic_subscriber", "start_topic_subscriber", "topic_subscriber_supervised"]
-////   },
-////   {
-////     header: "Consumer Configuration",
-////     types: ["ConsumerOption", "StartingOffset", "OffsetResetPolicy", "IsolationLevel", "FetchOption", "MessageType"],
-////     functions: []
-////   },
-////   {
-////     header: "Messages",
-////     types: ["KafkaMessage", "TimestampType"],
-////     functions: []
+////     header: "Consumer",
+////     types: ["GroupSubscriber", "GroupSubscriberConfig", "GroupSubscriberMessage", "GroupCallbackAction", "GroupOption", "TopicSubscriber", "TopicSubscriberConfig", "TopicSubscriberMessage", "TopicCallbackAction", "SubscribePartitions", "ConsumerOption", "StartingOffset", "OffsetResetPolicy", "IsolationLevel", "FetchOption", "MessageType", "KafkaMessage", "TimestampType"],
+////     functions: ["default_group_subscriber_config", "start_group_subscriber", "group_subscriber_supervised", "group_subscriber_stop", "default_topic_subscriber", "start_topic_subscriber", "topic_subscriber_supervised", "topic_subscriber_stop", "fetch"]
 ////   },
 ////   {
 ////     header: "Errors",
@@ -78,18 +58,32 @@
 ////     mainHeader.textContent = section.header
 ////     newMainContent.append(mainHeader)
 ////
-////     for (const name of (section.types || [])) {
-////       const sidebarItem = typesUl.querySelector(`li:has(a[href="#${name}"])`)
-////       const member = moduleMembers.querySelector(`.member:has(h2#${name})`)
-////       if (sidebarItem) sidebarList.append(sidebarItem)
-////       if (member) newMainContent.append(member)
+////     if (section.types?.length) {
+////       const typesSubheader = document.createElement("h3")
+////       typesSubheader.textContent = "Types"
+////       typesSubheader.style.cssText = "font-size: 0.85em; opacity: 0.7; margin: 0.5em 0 0.25em 0.5em;"
+////       sidebarList.append(typesSubheader)
+////
+////       for (const name of section.types) {
+////         const sidebarItem = typesUl.querySelector(`li:has(a[href="#${name}"])`)
+////         const member = moduleMembers.querySelector(`.member:has(h2#${name})`)
+////         if (sidebarItem) sidebarList.append(sidebarItem)
+////         if (member) newMainContent.append(member)
+////       }
 ////     }
 ////
-////     for (const name of (section.functions || [])) {
-////       const sidebarItem = valuesUl.querySelector(`li:has(a[href="#${name}"])`)
-////       const member = moduleMembers.querySelector(`.member:has(h2#${name})`)
-////       if (sidebarItem) sidebarList.append(sidebarItem)
-////       if (member) newMainContent.append(member)
+////     if (section.functions?.length) {
+////       const valuesSubheader = document.createElement("h3")
+////       valuesSubheader.textContent = "Values"
+////       valuesSubheader.style.cssText = "font-size: 0.85em; opacity: 0.7; margin: 0.5em 0 0.25em 0.5em;"
+////       sidebarList.append(valuesSubheader)
+////
+////       for (const name of section.functions) {
+////         const sidebarItem = valuesUl.querySelector(`li:has(a[href="#${name}"])`)
+////         const member = moduleMembers.querySelector(`.member:has(h2#${name})`)
+////         if (sidebarItem) sidebarList.append(sidebarItem)
+////         if (member) newMainContent.append(member)
+////       }
 ////     }
 ////   }
 ////
