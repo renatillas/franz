@@ -117,26 +117,22 @@
 //// [Apache Kafka](https://kafka.apache.org/documentation/) is a distributed
 //// event streaming platform. Key concepts:
 ////
-//// - **Brokers**: Kafka runs as a cluster of servers called
-////   [brokers](https://kafka.apache.org/documentation/#brokerconfigs) that store
+//// - **Brokers**: Kafka runs as a cluster of servers called brokers that store
 ////   and serve data. Franz connects to brokers via `Endpoint(host, port)`.
 ////
-//// - **Topics**: Messages are organized into
-////   [topics](https://kafka.apache.org/documentation/#intro_concepts_and_terms)
-////   - named feeds of records. Topics are created with `create_topic()`.
+//// - **Topics**: Messages are organized into topics - named feeds of records.
+////   Topics are created with `create_topic()`.
 ////
-//// - **Partitions**: Topics are split into
-////   [partitions](https://kafka.apache.org/documentation/#intro_concepts_and_terms)
-////   for parallelism. Each partition is an ordered, immutable sequence of records.
-////   Messages within a partition have a sequential `Offset`.
+//// - **Partitions**: Topics are split into partitions for parallelism. Each
+////   partition is an ordered, immutable sequence of records. Messages within a
+////   partition have a sequential `Offset`.
 ////
-//// - **Producers**: Applications that publish messages to topics. See the
-////   [Producer section](https://kafka.apache.org/documentation/#producerapi).
+//// - **Producers**: Applications that publish messages to topics.
 ////
 //// - **Consumers**: Applications that read messages from topics. Kafka supports
 ////   two consumption patterns:
 ////   - **Consumer Groups**: High-level API with automatic partition assignment
-////     and offset management. See [Consumer Groups](https://kafka.apache.org/documentation/#intro_consumers).
+////     and offset management.
 ////   - **Topic Subscribers**: Low-level API for direct partition access.
 ////
 //// ## Quick Start
@@ -189,9 +185,8 @@
 ////
 //// ### Consumer Groups (Recommended)
 ////
-//// [Consumer groups](https://kafka.apache.org/documentation/#intro_consumers)
-//// provide automatic partition assignment, offset tracking, and rebalancing
-//// when consumers join or leave the group.
+//// Consumer groups provide automatic partition assignment, offset tracking, and
+//// rebalancing when consumers join or leave the group.
 ////
 //// ```gleam
 //// let name = process.new_name("my_consumer")
@@ -232,8 +227,7 @@
 ////
 //// ## Producer Semantics
 ////
-//// Kafka producers support different
-//// [delivery guarantees](https://kafka.apache.org/documentation/#semantics):
+//// Kafka producers support different delivery guarantees:
 ////
 //// | Function | Guarantee | Use Case |
 //// |----------|-----------|----------|
@@ -246,13 +240,9 @@
 //// - `1`: Leader acknowledgment (balanced)
 //// - `-1`: All in-sync replicas (strongest durability)
 ////
-//// See [Producer Configs](https://kafka.apache.org/documentation/#producerconfigs)
-//// for details on `acks`, `compression.type`, `batch.size`, and more.
-////
 //// ## Partitioning
 ////
-//// Messages are assigned to [partitions](https://kafka.apache.org/documentation/#intro_concepts_and_terms)
-//// using a `PartitionSelector`:
+//// Messages are assigned to partitions using a `PartitionSelector`:
 ////
 //// - `SinglePartition(n)`: Send to a specific partition
 //// - `Partitioner(Hash)`: Hash the key for consistent routing
@@ -264,8 +254,7 @@
 ////
 //// ## Consumer Offsets
 ////
-//// [Offsets](https://kafka.apache.org/documentation/#intro_concepts_and_terms)
-//// track consumption progress. Configure starting position with `BeginOffset`:
+//// Offsets track consumption progress. Configure starting position with `BeginOffset`:
 ////
 //// - `Latest`: Start from newest messages (default)
 //// - `Earliest`: Read from the beginning
@@ -277,22 +266,21 @@
 ////
 //// ## Transactions and Isolation
 ////
-//// Kafka supports [transactions](https://kafka.apache.org/documentation/#semantics)
-//// for exactly-once semantics. Control visibility with `IsolationLevel`:
+//// Kafka supports transactions for exactly-once semantics. Control visibility
+//// with `IsolationLevel`:
 ////
 //// - `ReadCommitted`: Only see committed transaction messages (default)
 //// - `ReadUncommitted`: See all messages including uncommitted
 ////
 //// ## Authentication
 ////
-//// Franz supports [SASL authentication](https://kafka.apache.org/documentation/#security_sasl):
+//// Franz supports SASL authentication:
 ////
 //// - `Plain`: Username/password in clear text (use with SSL)
 //// - `ScramSha256`: Challenge-response authentication
 //// - `ScramSha512`: Stronger SCRAM variant
 ////
-//// And [SSL/TLS encryption](https://kafka.apache.org/documentation/#security_ssl)
-//// for secure connections.
+//// And SSL/TLS encryption for secure connections.
 ////
 //// ```gleam
 //// franz.client()
@@ -340,8 +328,7 @@
 ////
 //// ## Compression
 ////
-//// Reduce network bandwidth with
-//// [message compression](https://kafka.apache.org/documentation/#producerconfigs_compression.type):
+//// Reduce network bandwidth with message compression:
 ////
 //// - `NoCompression`: No compression (default)
 //// - `Gzip`: Good compression ratio, higher CPU
@@ -355,16 +342,14 @@
 //// | Error Type | Operations | Reference |
 //// |------------|------------|-----------|
 //// | `ClientError` | `start` | Connection and auth failures |
-//// | `TopicError` | `create_topic`, `delete_topics` | [Topic errors](https://kafka.apache.org/protocol#protocol_error_codes) |
-//// | `ProduceError` | `produce`, `produce_sync`, `produce_async` | [Producer errors](https://kafka.apache.org/protocol#protocol_error_codes) |
-//// | `FetchError` | `fetch` | [Fetch errors](https://kafka.apache.org/protocol#protocol_error_codes) |
-//// | `GroupError` | `list_groups`, `group_subscriber_stop` | [Group errors](https://kafka.apache.org/protocol#protocol_error_codes) |
+//// | `TopicError` | `create_topic`, `delete_topics` | Topic errors |
+//// | `ProduceError` | `produce`, `produce_sync`, `produce_async` | Producer errors |
+//// | `FetchError` | `fetch` | Fetch errors |
+//// | `GroupError` | `list_groups`, `group_subscriber_stop` | Group errors |
 ////
 //// ## Further Reading
 ////
 //// - [Kafka Documentation](https://kafka.apache.org/documentation/)
-//// - [Kafka Design](https://kafka.apache.org/documentation/#design)
-//// - [Kafka Protocol](https://kafka.apache.org/protocol)
 //// - [brod (Erlang client)](https://github.com/kafka4beam/brod)
 ////
 
@@ -391,9 +376,6 @@ import gleam/time/timestamp.{type Timestamp}
 ///
 /// Clients are identified by a registered process name, allowing them to be
 /// referenced from anywhere in your application.
-///
-/// See [Kafka Broker Configuration](https://kafka.apache.org/documentation/#brokerconfigs)
-/// for details on broker settings.
 pub opaque type Client {
   Client(name: process.Name(Message))
 }
@@ -426,8 +408,6 @@ pub type Endpoint {
 /// SASL (Simple Authentication and Security Layer) provides authentication
 /// between clients and brokers. Choose a mechanism based on your security
 /// requirements and infrastructure.
-///
-/// See [Kafka SASL Authentication](https://kafka.apache.org/documentation/#security_sasl).
 pub type SaslMechanism {
   /// PLAIN mechanism - sends credentials in clear text.
   /// **Always use with SSL/TLS** to encrypt the connection, otherwise
@@ -456,8 +436,6 @@ pub type SaslCredentials {
 ///
 /// SSL/TLS encrypts all traffic between the client and Kafka brokers,
 /// protecting data in transit. Can be combined with SASL authentication.
-///
-/// See [Kafka SSL Encryption](https://kafka.apache.org/documentation/#security_ssl).
 pub type SslOption {
   /// Enable SSL with system default CA certificates.
   /// Uses the operating system's trusted CA store.
@@ -494,8 +472,6 @@ pub type SslVerify {
 ///
 /// These errors typically indicate infrastructure issues (network, broker availability)
 /// or authentication/authorization problems.
-///
-/// See [Kafka Error Codes](https://kafka.apache.org/protocol#protocol_error_codes).
 pub type ClientError {
   /// No broker is available to handle the request. Check broker health.
   ClientBrokerNotAvailable
@@ -516,8 +492,6 @@ pub type ClientError {
 }
 
 /// Errors that can occur during topic administration (create, delete).
-///
-/// See [Kafka Topic Configuration](https://kafka.apache.org/documentation/#topicconfigs).
 pub type TopicError {
   /// Attempted to create a topic that already exists.
   TopicAlreadyExists
@@ -544,8 +518,6 @@ pub type TopicError {
 }
 
 /// Errors that can occur when producing messages.
-///
-/// See [Producer Semantics](https://kafka.apache.org/documentation/#semantics).
 pub type ProduceError {
   /// No producer exists for the specified topic/partition. Call `producer_start` first.
   ProducerNotFound(topic: String, partition: Int)
@@ -578,8 +550,6 @@ pub type ProduceError {
 }
 
 /// Errors that can occur when fetching/consuming messages.
-///
-/// See [Consumer Configuration](https://kafka.apache.org/documentation/#consumerconfigs).
 pub type FetchError {
   /// The requested offset is outside the valid range for this partition.
   /// Occurs when offset is before the earliest or after the latest message.
@@ -614,8 +584,6 @@ pub type FetchError {
 ///
 /// Consumer groups coordinate partition assignment across multiple consumers.
 /// These errors often relate to group membership and rebalancing.
-///
-/// See [Consumer Group Protocol](https://kafka.apache.org/documentation/#intro_consumers).
 pub type GroupError {
   /// The group coordinator is loading and cannot accept requests.
   GroupCoordinatorLoading
@@ -658,8 +626,6 @@ pub type GroupError {
 /// Each Kafka message has an offset (its position in the partition), a key
 /// (for partitioning and compaction), a value (the actual payload), optional
 /// headers, and a timestamp.
-///
-/// See [Kafka Message Format](https://kafka.apache.org/documentation/#messageformat).
 pub type KafkaMessage {
   /// A single Kafka message/record.
   KafkaMessage(
@@ -697,8 +663,6 @@ pub type KafkaMessage {
 ///
 /// Kafka supports two timestamp types controlled by the topic's
 /// `message.timestamp.type` configuration.
-///
-/// See [Topic Configuration](https://kafka.apache.org/documentation/#topicconfigs).
 pub type TimestampType {
   /// Timestamp type is not defined (legacy messages).
   Undefined
@@ -730,9 +694,6 @@ pub type MessageType {
 ///
 /// These options control connection behavior, authentication, and default
 /// settings for producers and consumers.
-///
-/// See [Kafka Client Configuration](https://kafka.apache.org/documentation/#consumerconfigs)
-/// for the underlying configuration options.
 pub type ClientOption {
   /// How long to wait between attempts to restart the client process when it crashes.
   /// Default: 10 seconds.
@@ -776,8 +737,6 @@ pub type ClientOption {
 ///
 /// Kafka topics are divided into partitions for parallelism and scalability.
 /// The partition selector determines which partition receives each message.
-///
-/// See [Kafka Partitioning](https://kafka.apache.org/documentation/#intro_concepts_and_terms).
 pub type PartitionSelector {
   /// Send all messages to a specific partition number.
   /// Use when you need precise control over message placement.
@@ -826,8 +785,6 @@ pub type ProduceValue {
 /// Configuration options for Kafka producers.
 ///
 /// These options control durability guarantees, batching behavior, and performance.
-///
-/// See [Producer Configs](https://kafka.apache.org/documentation/#producerconfigs).
 pub type ProducerOption {
   /// Number of acknowledgments required before considering a produce request complete.
   /// - `0`: No acknowledgment (fire-and-forget, fastest but may lose messages)
@@ -878,8 +835,6 @@ pub type ProducerOption {
 ///
 /// Compression reduces network bandwidth and storage at the cost of CPU.
 /// The broker will decompress when needed for consumers.
-///
-/// See [compression.type](https://kafka.apache.org/documentation/#producerconfigs_compression.type).
 pub type Compression {
   /// No compression. Best for low-latency when bandwidth isn't a concern.
   NoCompression
@@ -902,8 +857,6 @@ pub type Compression {
 ///
 /// These options control fetch behavior, prefetching, and offset management
 /// for both topic subscribers and group subscribers.
-///
-/// See [Consumer Configs](https://kafka.apache.org/documentation/#consumerconfigs).
 pub type ConsumerOption {
   /// The offset position from which to start consuming.
   /// Default: Latest.
@@ -949,8 +902,6 @@ pub type ConsumerOption {
 ///
 /// When a consumer starts (or restarts without a committed offset), this
 /// determines which messages it will receive.
-///
-/// See [auto.offset.reset](https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset).
 pub type StartingOffset {
   /// Start from the newest messages (produced after consumer starts).
   /// Use when you only care about new events, not historical data.
@@ -986,8 +937,6 @@ pub type OffsetResetPolicy {
 ///
 /// Kafka supports transactions for exactly-once semantics. This setting
 /// determines whether consumers see uncommitted transactional messages.
-///
-/// See [isolation.level](https://kafka.apache.org/documentation/#consumerconfigs_isolation.level).
 pub type IsolationLevel {
   /// Only return messages from committed transactions.
   /// This is the safe default that provides exactly-once semantics.
@@ -1025,8 +974,6 @@ pub type FetchOption {
 /// Consumer groups enable parallel consumption across multiple consumers.
 /// Kafka automatically assigns partitions to group members and handles
 /// rebalancing when members join or leave.
-///
-/// See [Consumer Group Configs](https://kafka.apache.org/documentation/#consumerconfigs).
 pub type GroupOption {
   /// Maximum time between heartbeats before the coordinator considers
   /// this member dead and triggers a rebalance.
@@ -1060,8 +1007,6 @@ pub type GroupOption {
 /// Consumer groups provide automatic partition assignment, offset tracking,
 /// and rebalancing when consumers join or leave. This is the recommended
 /// way to consume messages for most use cases.
-///
-/// See [Consumer Groups](https://kafka.apache.org/documentation/#intro_consumers).
 pub type GroupSubscriber {
   GroupSubscriber(pid: process.Pid, name: process.Name(GroupSubscriberMessage))
 }
@@ -1279,8 +1224,6 @@ pub fn stop(client: Client) -> Nil
 ///
 /// Topics must be created before producing or consuming messages (unless
 /// auto-creation is enabled on the broker).
-///
-/// See [Topic Configuration](https://kafka.apache.org/documentation/#topicconfigs).
 ///
 /// ## Parameters
 ///
@@ -1632,8 +1575,6 @@ type GroupCallbackReturn
 /// Consumer groups provide automatic partition assignment across multiple
 /// consumers, offset tracking, and rebalancing. This is the recommended
 /// way to consume messages for most applications.
-///
-/// See [Consumer Groups](https://kafka.apache.org/documentation/#intro_consumers).
 pub type GroupSubscriberConfig(state) {
   GroupSubscriberConfig(
     /// Registered process name for the subscriber.
