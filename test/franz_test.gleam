@@ -510,7 +510,8 @@ pub fn produce_and_consume_with_headers_test() {
     ..,
   )) = process.receive(message_subject, 2000)
 
-  assert received_headers == [#("trace-id", <<"abc123">>), #("source", <<"test">>)]
+  assert received_headers
+    == [#("trace-id", <<"abc123">>), #("source", <<"test">>)]
 }
 
 // =============================================================================
@@ -824,22 +825,28 @@ pub fn fetch_with_options_test() {
     )
 
   // Fetch with various options
-  let assert Ok(#(next_offset, _message)) =
-    franz.fetch(
-      client:,
-      topic:,
-      partition: 0,
-      offset: 0,
-      options: [
-        franz.FetchMaxWaitTime(duration.seconds(5)),
-        franz.FetchMinBytes(1),
-        franz.FetchMaxBytes(1_048_576),
-        franz.FetchIsolationLevel(franz.ReadCommitted),
-      ],
-    )
-
-  // Verify we got a valid next offset (indicating message was fetched)
-  assert next_offset >= 1
+  let assert Ok(franz.KafkaMessageSet(
+    topic: "fetch_options_topic",
+    partition: 0,
+    high_wm_offset: 1,
+    messages: [
+      franz.KafkaMessage(
+        0,
+        <<"fetch_key">>,
+        <<"fetch_value">>,
+        franz.Create,
+        _,
+        [],
+      ),
+    ],
+  )) =
+    franz.fetch(client:, topic:, partition: 0, offset: 0, options: [
+      franz.FetchMaxWaitTime(duration.seconds(5)),
+      franz.FetchMinBytes(1),
+      franz.FetchMaxBytes(1_048_576),
+      franz.FetchIsolationLevel(franz.ReadCommitted),
+    ])
+  Nil
 }
 
 // =============================================================================
@@ -1140,14 +1147,24 @@ pub fn fetch_with_read_uncommitted_test() {
     )
 
   // Fetch with ReadUncommitted isolation level
-  let assert Ok(#(_, _)) =
-    franz.fetch(
-      client:,
-      topic:,
-      partition: 0,
-      offset: 0,
-      options: [franz.FetchIsolationLevel(franz.ReadUncommitted)],
-    )
+  let assert Ok(franz.KafkaMessageSet(
+    messages: [
+      franz.KafkaMessage(
+        offset: 0,
+        key: <<"isolation_key">>,
+        value: <<"isolation_value">>,
+        timestamp_type: franz.Create,
+        timestamp: _,
+        headers: [],
+      ),
+    ],
+    partition: 0,
+    high_wm_offset: 1,
+    topic: "isolation_level_topic",
+  )) =
+    franz.fetch(client:, topic:, partition: 0, offset: 0, options: [
+      franz.FetchIsolationLevel(franz.ReadUncommitted),
+    ])
   Nil
 }
 
@@ -1340,12 +1357,13 @@ pub fn topic_subscriber_with_message_batch_test() {
   assert list.length(all_messages) >= 3
 
   // Verify the keys are present (order preserved within partition)
-  let keys = list.map(all_messages, fn(m) {
-    case m {
-      franz.KafkaMessage(key: k, ..) -> k
-      _ -> <<>>
-    }
-  })
+  let keys =
+    list.map(all_messages, fn(m) {
+      case m {
+        franz.KafkaMessage(key: k, ..) -> k
+        _ -> <<>>
+      }
+    })
   assert list.contains(keys, <<"batch_key_1">>)
   assert list.contains(keys, <<"batch_key_2">>)
   assert list.contains(keys, <<"batch_key_3">>)
@@ -1361,7 +1379,8 @@ fn collect_batch_messages(
   case process.receive(subject, timeout) {
     Ok(franz.KafkaMessageSet(messages: more_msgs, ..)) ->
       collect_batch_messages(subject, list.append(initial, more_msgs), timeout)
-    Ok(msg) -> collect_batch_messages(subject, list.append(initial, [msg]), timeout)
+    Ok(msg) ->
+      collect_batch_messages(subject, list.append(initial, [msg]), timeout)
     Error(Nil) -> initial
   }
 }
@@ -1444,23 +1463,25 @@ pub fn group_subscriber_with_message_batch_test() {
   assert list.length(all_messages) >= 3
 
   // Verify message keys and values are correct
-  let keys = list.map(all_messages, fn(m) {
-    case m {
-      franz.KafkaMessage(key: k, ..) -> k
-      _ -> <<>>
-    }
-  })
+  let keys =
+    list.map(all_messages, fn(m) {
+      case m {
+        franz.KafkaMessage(key: k, ..) -> k
+        _ -> <<>>
+      }
+    })
   assert list.contains(keys, <<"group_batch_key_1">>)
   assert list.contains(keys, <<"group_batch_key_2">>)
   assert list.contains(keys, <<"group_batch_key_3">>)
 
   // Verify values are correct too
-  let values = list.map(all_messages, fn(m) {
-    case m {
-      franz.KafkaMessage(value: v, ..) -> v
-      _ -> <<>>
-    }
-  })
+  let values =
+    list.map(all_messages, fn(m) {
+      case m {
+        franz.KafkaMessage(value: v, ..) -> v
+        _ -> <<>>
+      }
+    })
   assert list.contains(values, <<"group_batch_value_1">>)
   assert list.contains(values, <<"group_batch_value_2">>)
   assert list.contains(values, <<"group_batch_value_3">>)
@@ -1562,8 +1583,11 @@ pub fn produce_large_message_test() {
     )
 
   // Verify large message received correctly
-  let assert Ok(franz.KafkaMessage(key: <<"large_key">>, value: received_value, ..)) =
-    process.receive(message_subject, 5000)
+  let assert Ok(franz.KafkaMessage(
+    key: <<"large_key">>,
+    value: received_value,
+    ..,
+  )) = process.receive(message_subject, 5000)
 
   // Verify size matches
   assert bit_array_size(received_value) == 100_000
@@ -1580,7 +1604,9 @@ fn create_large_bitarray_loop(remaining: Int, acc: BitArray) -> BitArray {
     0 -> acc
     n if n >= 1000 -> {
       // Add 1000 bytes at a time for efficiency (1000 X's)
-      let chunk = <<"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX">>
+      let chunk = <<
+        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      >>
       create_large_bitarray_loop(n - 1000, <<acc:bits, chunk:bits>>)
     }
     n -> {
@@ -1791,16 +1817,36 @@ pub fn produce_multiple_messages_order_test() {
     |> franz.start_topic_subscriber()
 
   // Receive messages and verify order
-  let assert Ok(franz.KafkaMessage(offset: 0, key: <<"msg_0">>, value: <<"value_0">>, ..)) =
-    process.receive(message_subject, 3000)
-  let assert Ok(franz.KafkaMessage(offset: 1, key: <<"msg_1">>, value: <<"value_1">>, ..)) =
-    process.receive(message_subject, 1000)
-  let assert Ok(franz.KafkaMessage(offset: 2, key: <<"msg_2">>, value: <<"value_2">>, ..)) =
-    process.receive(message_subject, 1000)
-  let assert Ok(franz.KafkaMessage(offset: 3, key: <<"msg_3">>, value: <<"value_3">>, ..)) =
-    process.receive(message_subject, 1000)
-  let assert Ok(franz.KafkaMessage(offset: 4, key: <<"msg_4">>, value: <<"value_4">>, ..)) =
-    process.receive(message_subject, 1000)
+  let assert Ok(franz.KafkaMessage(
+    offset: 0,
+    key: <<"msg_0">>,
+    value: <<"value_0">>,
+    ..,
+  )) = process.receive(message_subject, 3000)
+  let assert Ok(franz.KafkaMessage(
+    offset: 1,
+    key: <<"msg_1">>,
+    value: <<"value_1">>,
+    ..,
+  )) = process.receive(message_subject, 1000)
+  let assert Ok(franz.KafkaMessage(
+    offset: 2,
+    key: <<"msg_2">>,
+    value: <<"value_2">>,
+    ..,
+  )) = process.receive(message_subject, 1000)
+  let assert Ok(franz.KafkaMessage(
+    offset: 3,
+    key: <<"msg_3">>,
+    value: <<"value_3">>,
+    ..,
+  )) = process.receive(message_subject, 1000)
+  let assert Ok(franz.KafkaMessage(
+    offset: 4,
+    key: <<"msg_4">>,
+    value: <<"value_4">>,
+    ..,
+  )) = process.receive(message_subject, 1000)
   Nil
 }
 
@@ -1847,25 +1893,32 @@ pub fn fetch_multiple_messages_test() {
     )
 
   // Fetch from offset 0 - franz.fetch returns #(next_offset, KafkaMessageSet)
-  let assert Ok(#(next_offset, franz.KafkaMessageSet(
+  let assert Ok(franz.KafkaMessageSet(
     topic: received_topic,
     partition: 0,
     messages: msgs,
     ..,
-  ))) = franz.fetch(client:, topic:, partition: 0, offset: 0, options: [])
+  )) = franz.fetch(client:, topic:, partition: 0, offset: 0, options: [])
 
   // Verify we got all 3 messages (next_offset should be 3)
-  assert next_offset == 3
   assert received_topic == topic
   assert list.length(msgs) == 3
 
   // Verify first message
-  let assert Ok(franz.KafkaMessage(offset: 0, key: <<"fetch_key_0">>, value: <<"fetch_value_0">>, ..)) =
-    list.first(msgs)
+  let assert Ok(franz.KafkaMessage(
+    offset: 0,
+    key: <<"fetch_key_0">>,
+    value: <<"fetch_value_0">>,
+    ..,
+  )) = list.first(msgs)
 
   // Verify last message
-  let assert Ok(franz.KafkaMessage(offset: 2, key: <<"fetch_key_2">>, value: <<"fetch_value_2">>, ..)) =
-    list.last(msgs)
+  let assert Ok(franz.KafkaMessage(
+    offset: 2,
+    key: <<"fetch_key_2">>,
+    value: <<"fetch_value_2">>,
+    ..,
+  )) = list.last(msgs)
   Nil
 }
 

@@ -4,7 +4,8 @@
          stop_topic_subscriber/1, fetch/5, produce_cb/6, stop_client/1, produce_sync/5,
          start_client/3, produce_sync_offset/5, create_topic/6, start_topic_subscriber/8,
          group_ack/1, group_commit/1, topic_ack/1, start_group_subscriber/8, start_producer/3,
-         identity/1, make_value/2, make_value_with_ts/3]).
+         identity/1, make_value/2, make_value_with_ts/3,
+         convert_kafka_message/1, convert_message_set/4]).
 
 %% Identity function for type coercion in Gleam
 identity(X) ->
@@ -377,15 +378,23 @@ start_topic_subscriber(Client,
           PartitionList
       end,
   {client, ClientName} = Client,
-  %% ConsumerConfig is already in brod format (list of {atom, value} tuples)
-  %% built by Gleam's consumer_option_to_brod function
+  %% Wrap the callback to convert brod messages to Gleam format before calling
+  WrappedCb = fun(Partition, Msg, State) ->
+    ConvertedMsg = case Msg of
+      {kafka_message, _, _, _, _, _, _} ->
+        convert_kafka_message(Msg);
+      {kafka_message_set, MsgTopic, MsgPartition, HighWmOffset, Messages} ->
+        convert_message_set(MsgTopic, MsgPartition, HighWmOffset, Messages)
+    end,
+    CbFun(Partition, ConvertedMsg, State)
+  end,
   brod_topic_subscriber:start_link(ClientName,
                                    Topic,
                                    P,
                                    ConsumerConfig,
                                    CommittedOffsets,
                                    message_type(MessageType),
-                                   CbFun,
+                                   WrappedCb,
                                    CbInit).
 
 %% Group subscriber callbacks
@@ -417,8 +426,8 @@ fetch(Client, Topic, Partition, Offset, Options) ->
   ProcessedOptions = maps:from_list(Options),
   case brod:fetch(ClientName, Topic, Partition, Offset, ProcessedOptions) of
     {ok, {HighWaterOffset, Messages}} ->
-      %% Return raw data - next offset calculation happens in Gleam during decode
-      {ok, {Offset, {Topic, Partition, HighWaterOffset, Messages}}};
+      %% Convert messages to Gleam format
+      {ok, convert_message_set(Topic, Partition, HighWaterOffset, Messages)};
     {error, Reason} ->
       {error, map_fetch_error(Reason)}
   end.
@@ -496,3 +505,14 @@ delete_topics(Endpoints, Topics, Timeout) ->
   TupleEndpoints =
     lists:map(fun({endpoint, Hostname, Port}) -> {Hostname, Port} end, Endpoints),
   topic_nil_result(brod:delete_topics(TupleEndpoints, Topics, Timeout)).
+
+%% Convert a single brod kafka_message to Gleam RawKafkaMessage format
+%% Input: {kafka_message, Offset, Key, Value, TsType, TsMs, Headers}
+%% Output: {raw_kafka_message, Offset, Key, Value, TsType, TsMs, Headers}
+convert_kafka_message({kafka_message, Offset, Key, Value, TsType, TsMs, Headers}) ->
+  {raw_kafka_message, Offset, Key, Value, TsType, TsMs, Headers}.
+
+%% Convert a message set (batch of messages)
+convert_message_set(Topic, Partition, HighWmOffset, Messages) ->
+  ConvertedMessages = lists:map(fun convert_kafka_message/1, Messages),
+  {raw_message_set, Topic, Partition, HighWmOffset, ConvertedMessages}.

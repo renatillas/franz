@@ -1,15 +1,12 @@
 <div align="center">
 
-# Franz
+# Franz 📖
 
 **A powerful Kafka client for Gleam**
 *Build reliable event-driven systems with ease*
 
 [![Package Version](https://img.shields.io/hexpm/v/franz)](https://hex.pm/packages/franz)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/franz/)
-[![CI](https://github.com/renatillas/franz/workflows/CI/badge.svg)](https://github.com/renatillas/franz/actions)
-
-[Quickstart](#quickstart) | [Examples](#examples) | [API Docs](https://hexdocs.pm/franz/) | [Configuration](#configuration)
 
 </div>
 

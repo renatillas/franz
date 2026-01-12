@@ -375,13 +375,13 @@
 ////
 
 import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{type Option}
 import gleam/otp/actor
 import gleam/otp/supervision
+import gleam/result
 import gleam/time/duration.{type Duration}
 import gleam/time/timestamp.{type Timestamp}
 
@@ -518,7 +518,7 @@ pub type ClientError {
   /// SASL authentication is in an invalid state.
   ClientIllegalSaslState
   /// An unexpected error occurred. Contains the original error for debugging.
-  ClientUnknownError(reason: Dynamic)
+  ClientUnknownError(reason: dynamic.Dynamic)
 }
 
 /// Errors that can occur during topic administration (create, delete).
@@ -546,7 +546,7 @@ pub type TopicError {
   /// No broker available to handle the request.
   TopicBrokerNotAvailable
   /// An unexpected error occurred. Contains the original error for debugging.
-  TopicUnknownError(reason: Dynamic)
+  TopicUnknownError(reason: dynamic.Dynamic)
 }
 
 /// Errors that can occur when producing messages.
@@ -580,7 +580,7 @@ pub type ProduceError {
   /// No broker available to handle the request.
   ProducerBrokerNotAvailable
   /// An unexpected error occurred. Contains the original error for debugging.
-  ProducerUnknownError(reason: Dynamic)
+  ProducerUnknownError(reason: dynamic.Dynamic)
 }
 
 /// Errors that can occur when fetching/consuming messages.
@@ -613,7 +613,7 @@ pub type FetchError {
   /// No broker available to handle the request.
   FetchBrokerNotAvailable
   /// An unexpected error occurred. Contains the original error for debugging.
-  FetchUnknownError(reason: Dynamic)
+  FetchUnknownError(reason: dynamic.Dynamic)
 }
 
 /// Errors that can occur with consumer group operations.
@@ -652,7 +652,7 @@ pub type GroupError {
   /// No broker available to handle the request.
   GroupBrokerNotAvailable
   /// An unexpected error occurred. Contains the original error for debugging.
-  GroupUnknownError(reason: Dynamic)
+  GroupUnknownError(reason: dynamic.Dynamic)
 }
 
 // =============================================================================
@@ -1398,21 +1398,11 @@ pub fn fetch(
   partition partition: Int,
   offset offset: Int,
   options options: List(FetchOption),
-) -> Result(#(Int, KafkaMessage), FetchError) {
+) -> Result(KafkaMessage, FetchError) {
   let brod_options = list.map(options, fetch_option_to_brod)
-  case do_fetch(client, topic, partition, offset, brod_options) {
-    Ok(#(request_offset, raw_message_set)) -> {
-      let #(message_set, next_offset) =
-        convert_raw_message_set(raw_message_set, request_offset)
-      Ok(#(next_offset, message_set))
-    }
-    Error(err) -> Error(err)
-  }
+  do_fetch(client, topic, partition, offset, brod_options)
+  |> result.map(raw_to_kafka_message)
 }
-
-/// Internal type for raw FFI result - #(topic, partition, high_wm_offset, raw_messages)
-type RawMessageSet =
-  #(String, Int, Int, List(Dynamic))
 
 @external(erlang, "franz_ffi", "fetch")
 fn do_fetch(
@@ -1421,60 +1411,7 @@ fn do_fetch(
   partition: Int,
   offset: Int,
   options: List(BrodOption),
-) -> Result(#(Int, RawMessageSet), FetchError)
-
-/// Convert raw FFI message set to Gleam KafkaMessageSet and compute next offset in single pass
-fn convert_raw_message_set(
-  raw: RawMessageSet,
-  fallback_offset: Int,
-) -> #(KafkaMessage, Int) {
-  let #(topic, partition, high_wm_offset, raw_messages) = raw
-  // Single pass: decode messages and track last offset
-  let #(messages_reversed, last_offset) =
-    list.fold(raw_messages, #([], fallback_offset), fn(acc, raw_msg) {
-      let #(msgs, current_offset) = acc
-      case decode.run(raw_msg, decode_single_message()) {
-        Ok(KafkaMessage(offset: msg_offset, ..) as msg) ->
-          #([msg, ..msgs], msg_offset + 1)
-        Ok(KafkaMessageSet(..) as msg) -> #([msg, ..msgs], current_offset)
-        Error(_) -> acc
-      }
-    })
-  let message_set =
-    KafkaMessageSet(
-      topic: topic,
-      partition: partition,
-      high_wm_offset: high_wm_offset,
-      messages: list.reverse(messages_reversed),
-    )
-  #(message_set, last_offset)
-}
-
-/// Convert raw timestamp type atom to Gleam TimestampType
-fn convert_timestamp_type(atom: atom.Atom) -> TimestampType {
-  let name = atom.to_string(atom)
-  case name {
-    "create" -> Create
-    "append" -> Append
-    _ -> Undefined
-  }
-}
-
-/// Convert milliseconds to Gleam Timestamp
-fn timestamp_from_ms(ms: Int) -> Timestamp {
-  let seconds = ms / 1000
-  let nanos = { ms % 1000 } * 1_000_000
-  timestamp.from_unix_seconds_and_nanoseconds(seconds, nanos)
-}
-
-/// Convert raw headers to list of key-value tuples
-fn headers_decoder() -> decode.Decoder(List(#(String, BitArray))) {
-  decode.list({
-    use key <- decode.then(decode.at([0], decode.string))
-    use value <- decode.then(decode.at([1], decode.bit_array))
-    decode.success(#(key, value))
-  })
-}
+) -> Result(RawMessage, FetchError)
 
 // =============================================================================
 // PRODUCER BUILDER
@@ -1775,8 +1712,9 @@ fn do_group_commit(state: state) -> GroupCallbackReturn
 
 fn wrap_group_callback(
   user_callback: fn(KafkaMessage, state) -> GroupCallbackAction(state),
-) -> fn(KafkaMessage, state) -> GroupCallbackReturn {
-  fn(msg, state) {
+) -> fn(RawMessage, state) -> GroupCallbackReturn {
+  fn(raw_msg, state) {
+    let msg = raw_to_kafka_message(raw_msg)
     case user_callback(msg, state) {
       GroupAck(new_state) -> do_group_ack(new_state)
       GroupCommit(new_state) -> do_group_commit(new_state)
@@ -1792,9 +1730,9 @@ fn do_start_group_subscriber(
   consumer_options: List(BrodOption),
   group_options: List(BrodOption),
   message_type: MessageType,
-  callback: fn(KafkaMessage, state) -> GroupCallbackReturn,
+  callback: fn(RawMessage, state) -> GroupCallbackReturn,
   init_state: state,
-) -> Result(process.Pid, Dynamic)
+) -> Result(process.Pid, dynamic.Dynamic)
 
 /// Starts the group subscriber and begins consuming messages.
 ///
@@ -1957,66 +1895,12 @@ fn do_topic_ack(state: state) -> TopicSubscriberCallbackReturn
 
 fn wrap_topic_callback(
   user_callback: fn(Int, KafkaMessage, state) -> TopicCallbackAction(state),
-) -> fn(Int, Dynamic, state) -> TopicSubscriberCallbackReturn {
-  fn(partition, raw_msg, state) {
-    // Convert raw brod kafka_message to proper Gleam KafkaMessage
-    let msg = convert_subscriber_message(raw_msg)
-    case user_callback(partition, msg, state) {
-      TopicAck(new_state) -> do_topic_ack(new_state)
-    }
+) -> fn(Int, RawMessage, state) -> TopicSubscriberCallbackReturn {
+  fn(partition: Int, raw_msg: RawMessage, state: state) {
+    let msg = raw_to_kafka_message(raw_msg)
+    let TopicAck(new_state) = user_callback(partition, msg, state)
+    do_topic_ack(new_state)
   }
-}
-
-/// Convert raw brod message (single or batch) to proper Gleam KafkaMessage
-fn convert_subscriber_message(raw: Dynamic) -> KafkaMessage {
-  let decoder = decode.one_of(decode_single_message(), [decode_message_set()])
-  let assert Ok(msg) = decode.run(raw, decoder)
-    as "Failed to decode Kafka message: unexpected format from brod"
-  msg
-}
-
-/// Decode a single kafka_message record
-/// brod format: {kafka_message, Offset, Key, Value, TsType, Ts, Headers}
-/// Tuple indices: 0=tag, 1=offset, 2=key, 3=value, 4=ts_type, 5=ts, 6=headers
-fn decode_single_message() {
-  use offset <- decode.subfield([1], decode.int)
-  use key <- decode.subfield([2], decode.bit_array)
-  use value <- decode.subfield([3], decode.bit_array)
-  use timestamp_type <- decode.subfield(
-    [4],
-    atom.decoder() |> decode.map(convert_timestamp_type),
-  )
-  use timestamp <- decode.subfield(
-    [5],
-    decode.int |> decode.map(timestamp_from_ms),
-  )
-  use headers <- decode.subfield([6], headers_decoder())
-
-  decode.success(KafkaMessage(
-    offset:,
-    key:,
-    value:,
-    timestamp_type:,
-    timestamp:,
-    headers:,
-  ))
-}
-
-/// Decode a message_set record (batch)
-/// brod format: {kafka_message_set, Topic, Partition, HighWmOffset, Messages}
-/// Tuple indices: 0=tag, 1=topic, 2=partition, 3=high_wm_offset, 4=messages
-fn decode_message_set() {
-  use topic <- decode.subfield([1], decode.string)
-  use partition <- decode.subfield([2], decode.int)
-  use high_wm_offset <- decode.subfield([3], decode.int)
-  use messages <- decode.subfield([4], decode.list(decode_single_message()))
-
-  decode.success(KafkaMessageSet(
-    topic: topic,
-    partition: partition,
-    high_wm_offset: high_wm_offset,
-    messages: messages,
-  ))
 }
 
 @external(erlang, "franz_ffi", "start_topic_subscriber")
@@ -2027,9 +1911,9 @@ fn do_start_topic_subscriber(
   consumer_options: List(BrodOption),
   committed_offsets: List(#(Int, Int)),
   message_type: MessageType,
-  callback: fn(Int, Dynamic, state) -> TopicSubscriberCallbackReturn,
+  callback: fn(Int, RawMessage, state) -> TopicSubscriberCallbackReturn,
   init_state: state,
-) -> Result(process.Pid, Dynamic)
+) -> Result(process.Pid, dynamic.Dynamic)
 
 /// Starts the topic subscriber and begins consuming messages.
 ///
@@ -2387,4 +2271,57 @@ fn fetch_option_to_brod(opt: FetchOption) -> BrodOption {
         isolation_level_to_brod(l),
       ))
   }
+}
+
+// =============================================================================
+// RAW FFI TYPES
+// =============================================================================
+
+/// Raw message from FFI with timestamp as milliseconds.
+/// This is converted to KafkaMessage in Gleam.
+/// Both variants are needed since FFI can return either single messages or batches.
+type RawMessage {
+  RawKafkaMessage(
+    offset: Int,
+    key: BitArray,
+    value: BitArray,
+    timestamp_type: TimestampType,
+    ts_ms: Int,
+    headers: List(#(String, BitArray)),
+  )
+  RawMessageSet(
+    topic: String,
+    partition: Int,
+    high_wm_offset: Int,
+    messages: List(RawMessage),
+  )
+}
+
+/// Convert a raw message from FFI to KafkaMessage
+fn raw_to_kafka_message(raw: RawMessage) -> KafkaMessage {
+  case raw {
+    RawKafkaMessage(offset, key, value, timestamp_type, ts_ms, headers) ->
+      KafkaMessage(
+        offset:,
+        key:,
+        value:,
+        timestamp_type:,
+        timestamp: timestamp_from_ms(ts_ms),
+        headers:,
+      )
+    RawMessageSet(topic, partition, high_wm_offset, messages) ->
+      KafkaMessageSet(
+        topic:,
+        partition:,
+        high_wm_offset:,
+        messages: list.map(messages, raw_to_kafka_message),
+      )
+  }
+}
+
+/// Convert milliseconds to Gleam Timestamp
+fn timestamp_from_ms(ms: Int) -> Timestamp {
+  let seconds = ms / 1000
+  let nanos = { ms % 1000 } * 1_000_000
+  timestamp.from_unix_seconds_and_nanoseconds(seconds, nanos)
 }

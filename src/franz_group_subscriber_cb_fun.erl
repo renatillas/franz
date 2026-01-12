@@ -12,7 +12,14 @@ init(_InitInfo, #cbm_init_data{cb_fun = CbFun, cb_data = CbState}) ->
   {ok, {CbFun, CbState}}.
 
 handle_message(Msg, {CbFun, CbState0}) ->
-  case CbFun(Msg, CbState0) of
+  %% Convert brod message to Gleam format before calling the callback
+  ConvertedMsg = case Msg of
+    {kafka_message, _, _, _, _, _, _} ->
+      franz_ffi:convert_kafka_message(Msg);
+    {kafka_message_set, Topic, Partition, HighWmOffset, Messages} ->
+      franz_ffi:convert_message_set(Topic, Partition, HighWmOffset, Messages)
+  end,
+  case CbFun(ConvertedMsg, CbState0) of
     {ok, ack, CbState} ->
       {ok, ack, {CbFun, CbState}};
     {ok, commit, CbState} ->
